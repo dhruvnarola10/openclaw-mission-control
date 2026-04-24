@@ -6,7 +6,7 @@ export function BrandMark() {
       </div>
       <div className="leading-tight">
         <div className="font-heading text-sm uppercase tracking-[0.26em] text-strong">
-          OPENCLAW
+          Leonardo AI
         </div>
         <div className="text-[11px] font-medium text-quiet">
           Mission Control
