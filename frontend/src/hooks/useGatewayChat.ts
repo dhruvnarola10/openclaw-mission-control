@@ -17,7 +17,8 @@ export function useGatewayChat() {
   useEffect(() => {
     // 1️⃣ read token from environment or localStorage (the UI will store it on first load if missing)
     const token = process.env.NEXT_PUBLIC_OPENCLAW_GATEWAY_TOKEN || localStorage.getItem('openclawGatewayToken') || '';
-    const wsUrl = `ws://127.0.0.1:18789/?token=${encodeURIComponent(token)}`;
+    const hostname = typeof window !== 'undefined' ? window.location.hostname : '127.0.0.1';
+    const wsUrl = `ws://${hostname}:18789/?token=${encodeURIComponent(token)}`;
 
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
