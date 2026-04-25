@@ -31,6 +31,52 @@ export function useGatewayChat() {
       localStorage.setItem('openclawChatSessionKey', key);
     }
     sessionKeyRef.current = key;
+
+    // Load existing chat history on mount
+    const boardId =
+      process.env.NEXT_PUBLIC_CHAT_BOARD_ID ||
+      localStorage.getItem('openclawChatBoardId');
+    if (!boardId) return;
+
+    const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+    const rawApiUrl = process.env.NEXT_PUBLIC_API_URL;
+    const apiBase = (!rawApiUrl || rawApiUrl === 'auto')
+      ? `http://${hostname}:8000`
+      : rawApiUrl.replace(/\/$/, '');
+
+    const token =
+      (typeof window !== 'undefined' ? window.sessionStorage.getItem('mc_local_auth_token') : null) ||
+      localStorage.getItem('openclawGatewayToken') ||
+      '';
+
+    const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+    const historyUrl =
+      `${apiBase}/api/v1/gateways/sessions/${encodeURIComponent(key)}/history` +
+      `?board_id=${encodeURIComponent(boardId)}`;
+
+    fetch(historyUrl, { headers })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        const rawHistory: unknown[] = data?.history ?? [];
+        if (!Array.isArray(rawHistory) || rawHistory.length === 0) return;
+        const mapped: ChatMessage[] = rawHistory
+          .filter((m): m is Record<string, unknown> => typeof m === 'object' && m !== null)
+          .map((m) => {
+            const role =
+              (m.role as string) === 'assistant' || (m.role as string) === 'agent'
+                ? 'assistant'
+                : 'user';
+            const text =
+              typeof m.content === 'string'
+                ? m.content
+                : typeof m.text === 'string'
+                  ? m.text
+                  : JSON.stringify(m);
+            return { role, text };
+          });
+        if (mapped.length > 0) setMessages(mapped);
+      })
+      .catch(() => {/* silently ignore history load failure */});
   }, []);
 
   // ---- build the backend API base URL ----
@@ -44,12 +90,13 @@ export function useGatewayChat() {
     return raw.replace(/\/$/, '');
   }, []);
 
-  // ---- helper: get bearer token from localStorage (set by the app auth) ----
+  // ---- helper: get bearer token from sessionStorage (set by the app auth) ----
   const getAuthHeader = useCallback((): Record<string, string> => {
+    // The local auth mode stores the token in sessionStorage under 'mc_local_auth_token'
+    // (see frontend/src/auth/localAuth.ts)
     const token =
-      process.env.NEXT_PUBLIC_OPENCLAW_GATEWAY_TOKEN ||
+      (typeof window !== 'undefined' ? window.sessionStorage.getItem('mc_local_auth_token') : null) ||
       localStorage.getItem('openclawGatewayToken') ||
-      localStorage.getItem('authToken') ||
       '';
     if (!token) return {};
     return { Authorization: `Bearer ${token}` };
