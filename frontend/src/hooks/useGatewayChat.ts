@@ -17,8 +17,16 @@ export function useGatewayChat() {
   useEffect(() => {
     // 1️⃣ read token from environment or localStorage (the UI will store it on first load if missing)
     const token = process.env.NEXT_PUBLIC_OPENCLAW_GATEWAY_TOKEN || localStorage.getItem('openclawGatewayToken') || '';
+    
+    // 2️⃣ Generate and store a persistent device ID so the gateway doesn't create a new pairing request on every reload
+    let deviceId = localStorage.getItem('openclawDeviceId');
+    if (!deviceId) {
+      deviceId = 'browser-ui-' + Math.random().toString(36).slice(2, 10);
+      localStorage.setItem('openclawDeviceId', deviceId);
+    }
+
     const hostname = typeof window !== 'undefined' ? window.location.hostname : '127.0.0.1';
-    const wsUrl = `ws://${hostname}:18789/?token=${encodeURIComponent(token)}`;
+    const wsUrl = `ws://${hostname}:18789/?token=${encodeURIComponent(token)}&clientId=${deviceId}&deviceId=${deviceId}`;
 
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
