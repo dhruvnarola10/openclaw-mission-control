@@ -24,8 +24,14 @@ export function useGatewayChat() {
     wsRef.current = ws;
 
     ws.addEventListener('open', () => setStatus('open'));
-    ws.addEventListener('close', () => setStatus('closed'));
-    ws.addEventListener('error', () => setStatus('error'));
+    ws.addEventListener('close', (e) => {
+      console.log('WS closed', e.code, e.reason);
+      setStatus('closed');
+    });
+    ws.addEventListener('error', (e) => {
+      console.error('WS error', e);
+      setStatus('error');
+    });
 
     ws.addEventListener('message', ev => {
       try {
