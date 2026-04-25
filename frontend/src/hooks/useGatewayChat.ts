@@ -26,7 +26,10 @@ export function useGatewayChat() {
     }
 
     const hostname = typeof window !== 'undefined' ? window.location.hostname : '127.0.0.1';
-    const wsUrl = `ws://${hostname}:18789/?token=${encodeURIComponent(token)}&clientId=${deviceId}&deviceId=${deviceId}`;
+    const gatewayBase = process.env.NEXT_PUBLIC_OPENCLAW_GATEWAY_WS_URL || `ws://${hostname}:18789`;
+    const wsUrl = `${gatewayBase}/?token=${encodeURIComponent(token)}&clientId=${deviceId}&deviceId=${deviceId}`;
+
+    console.log('[useGatewayChat] Connecting to:', wsUrl);
 
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
