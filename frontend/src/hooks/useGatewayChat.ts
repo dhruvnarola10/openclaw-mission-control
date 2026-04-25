@@ -1,91 +1,170 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+
+export type ChatMessage = { role: 'user' | 'assistant'; text: string };
+export type ChatStatus = 'idle' | 'sending' | 'error';
 
 /**
- * Hook that connects to the OpenClaw gateway WS (local only).
- * Returns:
- *   - messages: array of {role:'user'|'assistant', text:string}
- *   - send: (prompt:string)=>void
- *   - status: 'connecting' | 'open' | 'closed' | 'error'
+ * Chat hook that routes messages through the mission-control backend.
+ *
+ * Architecture:
+ *   Browser → POST /api/v1/gateways/sessions/{session_id}/message → backend → gateway
+ *
+ * The gateway requires a signed device handshake (Ed25519) which can only
+ * be performed server-side. This hook therefore uses the existing backend
+ * REST proxy instead of connecting directly to the gateway WebSocket.
+ *
+ * Configuration (set in frontend/.env or .env.local):
+ *   NEXT_PUBLIC_API_URL        – base URL of the mission-control backend (default: auto)
+ *   NEXT_PUBLIC_CHAT_BOARD_ID  – board_id whose gateway is used for chat
  */
 export function useGatewayChat() {
-  const [messages, setMessages] = useState<Array<{role: 'user' | 'assistant', text: string}>>([]);
-  const [status, setStatus] = useState<'connecting' | 'open' | 'closed' | 'error'>('connecting');
-  const wsRef = useRef<WebSocket | null>(null);
-  const idRef = useRef<number>(1);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [status, setStatus] = useState<ChatStatus>('idle');
+  const [error, setError] = useState<string | null>(null);
+  const sessionKeyRef = useRef<string>('');
 
-  // ---- initialise WS (runs once) ----
+  // ---- derive a stable session key (persisted in localStorage) ----
   useEffect(() => {
-    // 1️⃣ read token from environment or localStorage (the UI will store it on first load if missing)
-    const token = process.env.NEXT_PUBLIC_OPENCLAW_GATEWAY_TOKEN || localStorage.getItem('openclawGatewayToken') || '';
-    
-    // 2️⃣ Generate and store a persistent device ID so the gateway doesn't create a new pairing request on every reload
-    let deviceId = localStorage.getItem('openclawDeviceId');
-    if (!deviceId) {
-      deviceId = 'browser-ui-' + Math.random().toString(36).slice(2, 10);
-      localStorage.setItem('openclawDeviceId', deviceId);
+    let key = localStorage.getItem('openclawChatSessionKey');
+    if (!key) {
+      key = 'browser-chat-' + Math.random().toString(36).slice(2, 12);
+      localStorage.setItem('openclawChatSessionKey', key);
     }
+    sessionKeyRef.current = key;
+  }, []);
 
-    const hostname = typeof window !== 'undefined' ? window.location.hostname : '127.0.0.1';
-    const gatewayBase = process.env.NEXT_PUBLIC_OPENCLAW_GATEWAY_WS_URL || `ws://${hostname}:18789`;
-    const wsUrl = `${gatewayBase}/?token=${encodeURIComponent(token)}&clientId=${deviceId}&deviceId=${deviceId}`;
+  // ---- build the backend API base URL ----
+  const getApiBase = useCallback((): string => {
+    const raw = process.env.NEXT_PUBLIC_API_URL;
+    if (!raw || raw === 'auto') {
+      // Same host, port 8000 (mission-control backend default)
+      const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+      return `http://${hostname}:8000`;
+    }
+    return raw.replace(/\/$/, '');
+  }, []);
 
-    console.log('[useGatewayChat] Connecting to:', wsUrl);
+  // ---- helper: get bearer token from localStorage (set by the app auth) ----
+  const getAuthHeader = useCallback((): Record<string, string> => {
+    const token =
+      process.env.NEXT_PUBLIC_OPENCLAW_GATEWAY_TOKEN ||
+      localStorage.getItem('openclawGatewayToken') ||
+      localStorage.getItem('authToken') ||
+      '';
+    if (!token) return {};
+    return { Authorization: `Bearer ${token}` };
+  }, []);
 
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
+  // ---- send a message ----
+  const send = useCallback(
+    async (prompt: string) => {
+      const trimmed = prompt.trim();
+      if (!trimmed) return;
 
-    ws.addEventListener('open', () => setStatus('open'));
-    ws.addEventListener('close', (e) => {
-      console.log('WS closed', e.code, e.reason);
-      setStatus('closed');
-    });
-    ws.addEventListener('error', (e) => {
-      console.error('WS error', e);
-      setStatus('error');
-    });
+      // Get the board_id from env or localStorage
+      const boardId =
+        process.env.NEXT_PUBLIC_CHAT_BOARD_ID ||
+        localStorage.getItem('openclawChatBoardId');
 
-    ws.addEventListener('message', ev => {
-      try {
-        const payload = JSON.parse(ev.data);
-        // The gateway emits `chat` events with an `assistantMessage` field
-        if (payload.method === 'chat' && payload.params?.assistantMessage) {
-          const txt = (payload.params.assistantMessage.content ?? '').replace(/\r?\n/g, ' ');
-          setMessages(prev => [...prev, { role: 'assistant', text: txt }]);
-        }
-      } catch (_) {
-        // ignore malformed messages
+      if (!boardId) {
+        setError(
+          'No board configured for chat. Set NEXT_PUBLIC_CHAT_BOARD_ID in your .env file, ' +
+          'or paste a board ID into localStorage key "openclawChatBoardId".',
+        );
+        return;
       }
-    });
 
-    // cleanup on unmount
-    return () => {
-      ws.close();
-      wsRef.current = null;
-    };
-  }, []); // empty deps → run only once
+      // Optimistic UI
+      setMessages((prev) => [...prev, { role: 'user', text: trimmed }]);
+      setStatus('sending');
+      setError(null);
 
-  // ---- function to send a prompt ----
-  const send = (prompt: string) => {
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-      console.warn('WS not ready, cannot send');
-      return;
-    }
+      const sessionKey = sessionKeyRef.current;
+      const apiBase = getApiBase();
+      const url = `${apiBase}/api/v1/gateways/sessions/${encodeURIComponent(sessionKey)}/message?board_id=${encodeURIComponent(boardId)}`;
 
-    // Optimistic UI: show user message immediately
-    setMessages(prev => [...prev, { role: 'user', text: prompt }]);
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...getAuthHeader(),
+          },
+          body: JSON.stringify({ content: trimmed }),
+        });
 
-    const id = idRef.current++;
-    const request = {
-      jsonrpc: '2.0',
-      id,
-      method: 'chat.send',
-      params: {
-        prompt,
-        idempotencyKey: `ui-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      },
-    };
-    wsRef.current.send(JSON.stringify(request));
-  };
+        if (!res.ok) {
+          const detail = await res.text();
+          throw new Error(`Backend returned ${res.status}: ${detail}`);
+        }
 
-  return { messages, send, status };
+        // The backend's send_message is fire-and-forget (returns OkResponse).
+        // The assistant reply comes back asynchronously via gateway events.
+        // Poll for history to pick up new messages.
+        await pollHistory(boardId, apiBase, sessionKey);
+        setStatus('idle');
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setError(msg);
+        setStatus('error');
+        console.error('[useGatewayChat] send failed:', msg);
+      }
+    },
+    [getApiBase, getAuthHeader],
+  );
+
+  // ---- poll chat history to retrieve the assistant reply ----
+  const pollHistory = useCallback(
+    async (boardId: string, apiBase: string, sessionKey: string) => {
+      const historyUrl =
+        `${apiBase}/api/v1/gateways/sessions/${encodeURIComponent(sessionKey)}/history` +
+        `?board_id=${encodeURIComponent(boardId)}`;
+
+      // Poll up to 30 seconds for the assistant reply
+      const maxAttempts = 30;
+      const pollInterval = 1000;
+
+      for (let i = 0; i < maxAttempts; i++) {
+        await new Promise((r) => setTimeout(r, pollInterval));
+        try {
+          const res = await fetch(historyUrl, {
+            headers: getAuthHeader(),
+          });
+          if (!res.ok) continue;
+          const data = await res.json();
+          const rawHistory: unknown[] = data?.history ?? [];
+          if (!Array.isArray(rawHistory)) continue;
+
+          const mapped: ChatMessage[] = rawHistory
+            .filter((m): m is Record<string, unknown> => typeof m === 'object' && m !== null)
+            .map((m) => {
+              const role =
+                (m.role as string) === 'assistant' || (m.role as string) === 'agent'
+                  ? 'assistant'
+                  : 'user';
+              const text =
+                typeof m.content === 'string'
+                  ? m.content
+                  : typeof m.text === 'string'
+                    ? m.text
+                    : JSON.stringify(m);
+              return { role, text };
+            });
+
+          if (mapped.length > 0) {
+            setMessages(mapped);
+          }
+
+          // Stop polling once we get an assistant message at the end
+          const last = mapped[mapped.length - 1];
+          if (last?.role === 'assistant') break;
+        } catch {
+          // ignore transient errors and keep polling
+        }
+      }
+    },
+    [getAuthHeader],
+  );
+
+  return { messages, send, status, error };
 }
