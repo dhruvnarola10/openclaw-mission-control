@@ -22,6 +22,10 @@ export default function ChatPage() {
 
   return (
     <DashboardPageLayout
+      signedOut={{
+        message: "Sign in to view chat.",
+        forceRedirectUrl: "/chat",
+      }}
       title="OpenClaw Chat"
       description="Talk to the OpenClaw assistant directly through the local gateway."
       stickyHeader
