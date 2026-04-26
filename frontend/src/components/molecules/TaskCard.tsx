@@ -1,4 +1,4 @@
-import { CalendarClock, UserCircle } from "lucide-react";
+import { CalendarClock, MessageSquare, UserCircle } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -20,6 +20,7 @@ interface TaskCardProps {
   isDragging?: boolean;
   onDragStart?: (event: React.DragEvent<HTMLDivElement>) => void;
   onDragEnd?: (event: React.DragEvent<HTMLDivElement>) => void;
+  onChatOpen?: () => void;
 }
 
 export function TaskCard({
@@ -38,6 +39,7 @@ export function TaskCard({
   isDragging = false,
   onDragStart,
   onDragEnd,
+  onChatOpen,
 }: TaskCardProps) {
   const hasPendingApproval = approvalsPendingCount > 0;
   const needsLeadReview =
@@ -158,22 +160,38 @@ export function TaskCard({
           <UserCircle className="h-4 w-4 text-slate-400" />
           <span>{assignee ?? "Unassigned"}</span>
         </div>
-        {due ? (
-          <div
-            className={cn(
-              "flex items-center gap-2",
-              isOverdue && "font-semibold text-rose-600",
-            )}
-          >
-            <CalendarClock
+        <div className="flex items-center gap-2">
+          {due ? (
+            <div
               className={cn(
-                "h-4 w-4",
-                isOverdue ? "text-rose-500" : "text-slate-400",
+                "flex items-center gap-2",
+                isOverdue && "font-semibold text-rose-600",
               )}
-            />
-            <span>{due}</span>
-          </div>
-        ) : null}
+            >
+              <CalendarClock
+                className={cn(
+                  "h-4 w-4",
+                  isOverdue ? "text-rose-500" : "text-slate-400",
+                )}
+              />
+              <span>{due}</span>
+            </div>
+          ) : null}
+          {onChatOpen && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onChatOpen();
+              }}
+              className="opacity-0 group-hover:opacity-100 transition-opacity rounded-md p-1 text-slate-400 hover:bg-blue-50 hover:text-blue-600"
+              title="Open chat for this task"
+              aria-label="Open chat"
+            >
+              <MessageSquare className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 
+import { ChatPanel } from "@/components/molecules/ChatPanel";
 import { TaskCard } from "@/components/molecules/TaskCard";
 import { parseApiDatetime } from "@/lib/datetime";
 import { cn } from "@/lib/utils";
@@ -33,6 +34,7 @@ type Task = {
 
 type TaskBoardProps = {
   tasks: Task[];
+  boardId?: string;
   onTaskSelect?: (task: Task) => void;
   onTaskMove?: (taskId: string, status: TaskStatus) => void | Promise<void>;
   readOnly?: boolean;
@@ -125,6 +127,7 @@ const KANBAN_MOVE_EASING = "cubic-bezier(0.2, 0.8, 0.2, 1)";
  */
 export const TaskBoard = memo(function TaskBoard({
   tasks,
+  boardId,
   onTaskSelect,
   onTaskMove,
   readOnly = false,
@@ -139,6 +142,7 @@ export const TaskBoard = memo(function TaskBoard({
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [activeColumn, setActiveColumn] = useState<TaskStatus | null>(null);
   const [reviewBucket, setReviewBucket] = useState<ReviewBucket>("all");
+  const [chatTask, setChatTask] = useState<Task | null>(null);
 
   const setCardRef = useCallback(
     (taskId: string) => (node: HTMLDivElement | null) => {
@@ -360,16 +364,16 @@ export const TaskBoard = memo(function TaskBoard({
   };
 
   return (
-    <div
-      ref={boardRef}
-      data-testid="task-board"
-      className={cn(
-        // Mobile-first: stack columns vertically to avoid horizontal scrolling.
-        "grid grid-cols-1 gap-4 overflow-x-hidden pb-6",
-        // Desktop/tablet: switch back to horizontally scrollable kanban columns.
-        "sm:grid-flow-col sm:auto-cols-[minmax(260px,320px)] sm:grid-cols-none sm:overflow-x-auto",
-      )}
-    >
+    <div className="flex gap-4">
+      {/* Kanban columns */}
+      <div
+        ref={boardRef}
+        data-testid="task-board"
+        className={cn(
+          "flex-1 grid grid-cols-1 gap-4 overflow-x-hidden pb-6",
+          "sm:grid-flow-col sm:auto-cols-[minmax(260px,320px)] sm:grid-cols-none sm:overflow-x-auto",
+        )}
+      >
       {columns.map((column) => {
         const columnTasks = grouped[column.status] ?? [];
         // Derive review tab counts and the active subset from one canonical task list.
@@ -511,6 +515,9 @@ export const TaskBoard = memo(function TaskBoard({
                           readOnly ? undefined : handleDragStart(task)
                         }
                         onDragEnd={readOnly ? undefined : handleDragEnd}
+                        onChatOpen={
+                          boardId ? () => setChatTask(task) : undefined
+                        }
                       />
                     </div>
                   );
@@ -520,6 +527,34 @@ export const TaskBoard = memo(function TaskBoard({
           </div>
         );
       })}
+      </div>
+
+      {/* Task chat slide-in panel */}
+      {chatTask && boardId && (
+        <div
+          className={cn(
+            "hidden md:flex w-80 lg:w-96 shrink-0 flex-col rounded-xl border border-slate-200 shadow-sm overflow-hidden",
+            "transition-all",
+          )}
+          style={{ height: "calc(100vh - 220px)", position: "sticky", top: "80px" }}
+        >
+          <ChatPanel
+            taskId={chatTask.id}
+            taskTitle={chatTask.title}
+            boardId={boardId}
+            agentId={chatTask.assigned_agent_id ?? undefined}
+            taskContext={[
+              `Task: ${chatTask.title}`,
+              chatTask.description ? `Description: ${chatTask.description}` : null,
+              `Priority: ${chatTask.priority}`,
+              `Status: ${chatTask.status}`,
+            ]
+              .filter(Boolean)
+              .join("\n")}
+            onClose={() => setChatTask(null)}
+          />
+        </div>
+      )}
     </div>
   );
 });

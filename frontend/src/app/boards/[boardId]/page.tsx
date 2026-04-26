@@ -3539,6 +3539,7 @@ export default function BoardDetailPage() {
                   {viewMode === "board" ? (
                     <TaskBoard
                       tasks={tasks}
+                      boardId={boardId ?? undefined}
                       onTaskSelect={openComments}
                       onTaskMove={canWrite ? handleTaskMove : undefined}
                       readOnly={!canWrite}
