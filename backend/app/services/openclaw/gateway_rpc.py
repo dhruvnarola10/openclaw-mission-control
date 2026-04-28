@@ -574,3 +574,30 @@ async def ensure_session(
     if label:
         params["label"] = label
     return await openclaw_call("sessions.patch", params, config=config)
+
+
+class GatewayRpc:
+    def __init__(self, url: str, token: str):
+        self._url = url
+        self._token = token
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+    async def stream(self, method: str, params: dict):
+        """Yields RPC frames until done=True or error."""
+        import websockets, json
+        async with websockets.connect(
+            self._url,
+            extra_headers={"Authorization": f"Bearer {self._token}"},
+            open_timeout=10,
+        ) as ws:
+            await ws.send(json.dumps({"id": "stream-1", "method": method, "params": params}))
+            async for raw in ws:
+                frame = json.loads(raw)
+                yield frame
+                if frame.get("done") or frame.get("error"):
+                    break
