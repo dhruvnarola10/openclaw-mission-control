@@ -24,7 +24,7 @@ FROM base AS deps
 COPY backend/pyproject.toml backend/uv.lock ./
 
 # Create venv and sync deps (including runtime)
-RUN uv sync --frozen --no-dev
+RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen --no-dev
 
 # --- runtime ---
 FROM base AS runtime

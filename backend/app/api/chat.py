@@ -140,9 +140,7 @@ async def chat_stream(
             first_chunk = chunk
             break
 
-        async def _with_first(
-            first: bytes, rest: AsyncIterator[bytes]
-        ) -> AsyncIterator[bytes]:
+        async def _with_first(first: bytes, rest: AsyncIterator[bytes]) -> AsyncIterator[bytes]:
             yield first
             async for c in rest:
                 yield c
