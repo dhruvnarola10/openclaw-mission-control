@@ -9,7 +9,7 @@ export type ChatMessage = {
 };
 export type StreamStatus = "idle" | "streaming" | "done" | "error";
 
-export function useOpenClawChat(sessionKey: string, boardId: string) {
+export function useOpenClawChat(sessionKey: string, boardId: string, agentId?: string) {
   const [messages,      setMessages]     = useState<ChatMessage[]>([]);
   const [streamStatus,  setStreamStatus] = useState<StreamStatus>("idle");
   const [error,         setError]        = useState<string | null>(null);
@@ -21,7 +21,7 @@ export function useOpenClawChat(sessionKey: string, boardId: string) {
     setStreamStatus("idle");
   }, [boardId]);
 
-  const sendMessage = useCallback(async (text: string) => {
+  const sendMessage = useCallback(async (text: string, instructions?: string) => {
     if (!boardId || !text.trim()) return;
     setError(null);
 
@@ -48,6 +48,8 @@ export function useOpenClawChat(sessionKey: string, boardId: string) {
           board_id:    boardId,
           // ✅ Correct session key format per docs.acp.md
           session_key: `agent:main:${sessionKey}`,
+          ...(agentId ? { agent_id: agentId } : {}),
+          ...(instructions ? { instructions } : {}),
         }),
         signal: abortRef.current.signal,
       });

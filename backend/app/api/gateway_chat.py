@@ -25,6 +25,7 @@ class ChatStreamRequest(BaseModel):
     # ✅ format: "agent:main:mc-global-chat" per docs.acp.md
     session_key: str = "agent:main:mc-global-chat"
     agent_id:    str = "main"
+    instructions: str | None = None
 
 
 @router.post("/stream")
