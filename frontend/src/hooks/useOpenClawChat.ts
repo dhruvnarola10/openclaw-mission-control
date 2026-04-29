@@ -6,6 +6,7 @@ export type ChatMessage = {
   id: string;
   role: "user" | "assistant";
   content: string;
+  tokens?: number;
 };
 export type StreamStatus = "idle" | "streaming" | "done" | "error";
 
