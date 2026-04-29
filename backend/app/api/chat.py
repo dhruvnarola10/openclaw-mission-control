@@ -61,11 +61,14 @@ async def _stream_gateway_sse(
     gateway_http: str,
     token: str | None,
     payload: dict[str, Any],
+    agent_id: str | None = None,
 ) -> AsyncIterator[bytes]:
     """Open an SSE stream to the gateway /v1/responses and yield raw chunks."""
     headers: dict[str, str] = {"Content-Type": "application/json"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
+    # Required by OpenClaw gateway to route to the correct agent session
+    headers["x-openclaw-agent-id"] = agent_id or "main"
 
     url = f"{gateway_http}/v1/responses"
     async with httpx.AsyncClient(timeout=120) as client:
@@ -132,7 +135,9 @@ async def chat_stream(
 
     # ---- try SSE streaming ----
     try:
-        stream_iter = _stream_gateway_sse(gateway_http, token, request_payload)
+        stream_iter = _stream_gateway_sse(
+            gateway_http, token, request_payload, agent_id=payload.agent_id
+        )
 
         # Pull the first chunk to confirm the stream opened before committing to StreamingResponse
         first_chunk: bytes | None = None
