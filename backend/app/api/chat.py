@@ -34,7 +34,7 @@ if TYPE_CHECKING:
     from sqlmodel.ext.asyncio.session import AsyncSession
 
 logger = get_logger(__name__)
-router = APIRouter(prefix="/gateways/chat", tags=["chat"])
+router = APIRouter(prefix="/chat", tags=["chat"])
 SESSION_DEP = Depends(get_session)
 AUTH_DEP = Depends(get_auth_context)
 ORG_ADMIN_DEP = Depends(require_org_admin)

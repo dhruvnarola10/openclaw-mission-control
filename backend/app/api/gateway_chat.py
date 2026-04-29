@@ -51,37 +51,37 @@ async def chat_stream(
 
 async def _stream(url, token, body) -> AsyncGenerator[str, None]:
     try:
-        ws = await websockets.connect(url, open_timeout=25)
-        await ws.send(json.dumps({
-            "type": "connect",
-            "params": {"auth": {"token": token}, "device": {"id": "mc-backend"}, "client": {"version": "0.1.0"}}
-        }))
-        hello = json.loads(await ws.recv())
-        if hello.get("type") not in ("hello-ok", "connected", "hello"):
-            yield f"data: {json.dumps({'error': 'Handshake failed'})}\n\n"; return
+        async with websockets.connect(url, open_timeout=25) as ws:
+            await ws.send(json.dumps({
+                "type": "connect",
+                "params": {"auth": {"token": token}, "device": {"id": "mc-backend"}, "client": {"version": "0.1.0"}}
+            }))
+            hello = json.loads(await ws.recv())
+            if hello.get("type") not in ("hello-ok", "connected", "hello"):
+                yield f"data: {json.dumps({'error': 'Handshake failed'})}\n\n"; return
 
-        req_id = str(uuid.uuid4())
-        await ws.send(json.dumps({
-            "type": "req", "id": req_id,
-            "method": "chat.send",
-            "params": {"text": body.message, "sessionKey": body.session_key, "stream": True}
-        }))
-        async for raw in ws:
-            frame = json.loads(raw)
-            if frame.get("type") == "event":
-                p = frame.get("payload", {})
-                delta = p.get("delta") or p.get("text") or p.get("content", "")
-                if p.get("error"):
-                    yield f"data: {json.dumps({'error': p['error']})}\n\n"; return
-                if delta:
-                    yield f"data: {json.dumps({'delta': delta})}\n\n"
-                if p.get("done"):
+            req_id = str(uuid.uuid4())
+            await ws.send(json.dumps({
+                "type": "req", "id": req_id,
+                "method": "chat.send",
+                "params": {"text": body.message, "sessionKey": body.session_key, "stream": True}
+            }))
+            async for raw in ws:
+                frame = json.loads(raw)
+                if frame.get("type") == "event":
+                    p = frame.get("payload", {})
+                    delta = p.get("delta") or p.get("text") or p.get("content", "")
+                    if p.get("error"):
+                        yield f"data: {json.dumps({'error': p['error']})}\n\n"; return
+                    if delta:
+                        yield f"data: {json.dumps({'delta': delta})}\n\n"
+                    if p.get("done"):
+                        yield "data: [DONE]\n\n"; return
+                elif frame.get("type") == "res" and frame.get("id") == req_id:
+                    content = frame.get("result", {}).get("text") or frame.get("result", {}).get("content", "")
+                    if content:
+                        yield f"data: {json.dumps({'delta': content})}\n\n"
                     yield "data: [DONE]\n\n"; return
-            elif frame.get("type") == "res" and frame.get("id") == req_id:
-                content = frame.get("result", {}).get("text") or frame.get("result", {}).get("content", "")
-                if content:
-                    yield f"data: {json.dumps({'delta': content})}\n\n"
-                yield "data: [DONE]\n\n"; return
     except Exception as e:
         yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
