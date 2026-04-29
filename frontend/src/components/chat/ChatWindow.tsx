@@ -24,19 +24,12 @@ export default function ChatWindow() {
 
   useEffect(() => {
     if (boards.length > 0 && !selectedBoardId) {
-      const stored = localStorage.getItem('openclawChatBoardId');
-      if (stored && boards.some(b => b.id === stored)) {
-        setSelectedBoardId(stored);
-      } else {
-        setSelectedBoardId(boards[0].id);
-      }
+      setSelectedBoardId(boards[0].id);
     }
   }, [boards, selectedBoardId]);
 
   const handleBoardChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const val = e.target.value;
-    setSelectedBoardId(val);
-    if (val) localStorage.setItem('openclawChatBoardId', val);
+    setSelectedBoardId(e.target.value);
   };
 
   const sessionKey = "mc-global-chat";
@@ -84,13 +77,13 @@ export default function ChatWindow() {
             "h-2 w-2 rounded-full shrink-0",
             isStreaming ? "bg-amber-400 animate-pulse" : "bg-emerald-500"
           )} />
-          <span className="font-medium text-slate-600">
+          <span className="font-medium text-slate-600 dark:text-slate-400">
             {isStreaming ? 'Waiting for reply…' : 'Ready'}
           </span>
         </div>
 
-        <div className="flex items-center gap-2 text-sm bg-white border border-slate-200 rounded-md px-3 py-1.5 shadow-sm">
-          <span className="text-slate-500 font-medium whitespace-nowrap">Active Board:</span>
+        <div className="flex items-center gap-2 text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md px-3 py-1.5 shadow-sm">
+          <span className="text-slate-500 dark:text-slate-400 font-medium whitespace-nowrap">Active Board:</span>
           {isLoadingBoards ? (
             <span className="text-slate-400">Loading...</span>
           ) : boards.length === 0 ? (
@@ -99,7 +92,7 @@ export default function ChatWindow() {
             <select
               value={selectedBoardId}
               onChange={handleBoardChange}
-              className="border-none bg-transparent py-0 pl-1 pr-6 text-slate-700 font-medium focus:ring-0 text-sm cursor-pointer w-full"
+              className="border-none bg-transparent py-0 pl-1 pr-6 text-slate-700 dark:text-slate-300 font-medium focus:ring-0 text-sm cursor-pointer w-full"
               disabled={isStreaming}
             >
               {boards.map((b) => (
@@ -117,9 +110,9 @@ export default function ChatWindow() {
         </div>
       )}
 
-      <div className="flex flex-col flex-1 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="flex flex-col flex-1 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-3 md:p-5 space-y-4 bg-slate-50">
+        <div className="flex-1 overflow-y-auto p-3 md:p-5 space-y-4 bg-slate-50 dark:bg-slate-950">
           {messages.length === 0 && (
             <div className="flex h-full items-center justify-center text-slate-400 text-sm text-center px-4">
               {!selectedBoardId && !isLoadingBoards
@@ -139,7 +132,7 @@ export default function ChatWindow() {
                     ? "self-start bg-rose-50 border border-rose-200 text-rose-800 rounded-bl-none"
                     : msg.content.startsWith("✓")
                       ? "self-start bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-bl-none"
-                      : "self-start bg-white border border-slate-200 text-slate-800 rounded-bl-none"
+                      : "self-start bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 rounded-bl-none"
               )}
             >
               <div className="mb-1.5 text-[10px] md:text-[11px] font-semibold uppercase tracking-wider opacity-60">
@@ -160,7 +153,7 @@ export default function ChatWindow() {
           ))}
 
           {isStreaming && messages[messages.length - 1]?.role === "user" && (
-            <div className="self-start flex items-center gap-1.5 bg-white border border-slate-200 rounded-2xl rounded-bl-none shadow-sm px-4 py-3">
+            <div className="self-start flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl rounded-bl-none shadow-sm px-4 py-3">
               <span className="h-2 w-2 rounded-full bg-slate-400 animate-bounce [animation-delay:-0.3s]" />
               <span className="h-2 w-2 rounded-full bg-slate-400 animate-bounce [animation-delay:-0.15s]" />
               <span className="h-2 w-2 rounded-full bg-slate-400 animate-bounce" />
@@ -171,7 +164,7 @@ export default function ChatWindow() {
         </div>
 
         {/* Input area */}
-        <div className="border-t border-slate-200 bg-white p-3 md:p-4 shrink-0">
+        <div className="border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 md:p-4 shrink-0">
           <div className="flex gap-2 flex-col sm:flex-row items-end">
             <textarea
               ref={textareaRef}
@@ -185,7 +178,7 @@ export default function ChatWindow() {
                   : "Select a board to chat"
               }
               rows={1}
-              className="flex-1 resize-none overflow-hidden rounded-lg border border-slate-300 px-4 py-2.5 text-base md:text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 transition-all w-full"
+              className="flex-1 resize-none overflow-hidden rounded-lg border border-slate-300 dark:border-slate-700 bg-transparent dark:text-slate-200 px-4 py-2.5 text-base md:text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 transition-all w-full"
             />
             {isStreaming ? (
               <button

@@ -7,6 +7,7 @@ import { DM_Serif_Display, IBM_Plex_Sans, Sora } from "next/font/google";
 
 import { AuthProvider } from "@/components/providers/AuthProvider";
 import { QueryProvider } from "@/components/providers/QueryProvider";
+import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { GlobalLoader } from "@/components/ui/global-loader";
 
 export const metadata: Metadata = {
@@ -41,12 +42,14 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body
         className={`${bodyFont.variable} ${headingFont.variable} ${displayFont.variable} min-h-screen bg-app text-strong antialiased`}
       >
-        <AuthProvider>
-          <QueryProvider>
-            <GlobalLoader />
-            {children}
-          </QueryProvider>
-        </AuthProvider>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
+          <AuthProvider>
+            <QueryProvider>
+              <GlobalLoader />
+              {children}
+            </QueryProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

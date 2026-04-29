@@ -26,6 +26,7 @@ import {
   useHealthzHealthzGet,
 } from "@/api/generated/default/default";
 import { cn } from "@/lib/utils";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
 export function DashboardSidebar() {
   const pathname = usePathname();
@@ -59,7 +60,7 @@ export function DashboardSidebar() {
         : "System degraded";
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-40 flex w-[280px] -translate-x-full flex-col border-r border-slate-200 bg-white pt-16 shadow-lg transition-transform duration-200 ease-in-out [[data-sidebar=open]_&]:translate-x-0 md:relative md:inset-auto md:z-auto md:w-[260px] md:translate-x-0 md:pt-0 md:shadow-none md:transition-none">
+    <aside className="fixed inset-y-0 left-0 z-40 flex w-[280px] -translate-x-full flex-col border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-950 pt-16 shadow-lg transition-transform duration-200 ease-in-out [[data-sidebar=open]_&]:translate-x-0 md:relative md:inset-auto md:z-auto md:w-[260px] md:translate-x-0 md:pt-0 md:shadow-none md:transition-none">
       <div className="flex-1 px-3 py-4">
         <p className="px-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
           Navigation
@@ -265,17 +266,20 @@ export function DashboardSidebar() {
           </div>
         </nav>
       </div>
-      <div className="border-t border-slate-200 p-4">
-        <div className="flex items-center gap-2 text-xs text-slate-500">
-          <span
-            className={cn(
-              "h-2 w-2 rounded-full",
-              systemStatus === "operational" && "bg-emerald-500",
-              systemStatus === "degraded" && "bg-rose-500",
-              systemStatus === "unknown" && "bg-slate-300",
-            )}
-          />
-          {statusLabel}
+      <div className="border-t border-slate-200 dark:border-slate-800 p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+            <span
+              className={cn(
+                "h-2 w-2 rounded-full",
+                systemStatus === "operational" && "bg-emerald-500",
+                systemStatus === "degraded" && "bg-rose-500",
+                systemStatus === "unknown" && "bg-slate-300 dark:bg-slate-700",
+              )}
+            />
+            {statusLabel}
+          </div>
+          <ThemeToggle />
         </div>
       </div>
     </aside>
