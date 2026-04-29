@@ -6,7 +6,7 @@ import { useCallback, useRef, useState } from "react";
 //   NEXT_PUBLIC_OPENCLAW_GATEWAY_URL=http://127.0.0.1:18789
 //   NEXT_PUBLIC_OPENCLAW_GATEWAY_TOKEN=<your token>
 const GATEWAY_BASE =
-  (process.env.NEXT_PUBLIC_OPENCLAW_GATEWAY_URL ?? "http://127.0.0.1:18789").replace(/\/$/, "");
+  (process.env.NEXT_PUBLIC_OPENCLAW_GATEWAY_URL ?? "http://localhost:18789").replace(/\/$/, "");
 const GATEWAY_TOKEN = process.env.NEXT_PUBLIC_OPENCLAW_GATEWAY_TOKEN ?? "";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
