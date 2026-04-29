@@ -40,11 +40,11 @@ export function useOpenClawChat(
         const data = await res.json();
         const historyData = data.history || data.messages;
         if (historyData && Array.isArray(historyData)) {
-          const formattedHistory = historyData.map((msg: any) => ({
-            id: msg.id || crypto.randomUUID(),
-            role: msg.role === "user" ? "user" : "assistant",
-            content: msg.content || msg.text || "",
-            tokens: msg.tokens,
+          const formattedHistory: ChatMessage[] = historyData.map((msg: any) => ({
+            id: String(msg.id || crypto.randomUUID()),
+            role: (msg.role === "user" ? "user" : "assistant") as "user" | "assistant",
+            content: String(msg.content || msg.text || ""),
+            tokens: msg.tokens ? Number(msg.tokens) : undefined,
           }));
           setMessages(formattedHistory);
         } else {
