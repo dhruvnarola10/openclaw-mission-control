@@ -7,7 +7,7 @@ import { useListBoardsApiV1BoardsGet } from "@/api/generated/boards/boards";
 import { useAuth } from "@/auth/clerk";
 
 export default function DevicesPage() {
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, getToken } = useAuth();
   const { data: boardsData, isLoading: isLoadingBoards } = useListBoardsApiV1BoardsGet(
     undefined,
     { query: { enabled: Boolean(isSignedIn) } }
@@ -30,8 +30,10 @@ export default function DevicesPage() {
     setIsLoadingDevices(true);
     setError(null);
     try {
+      const token = await getToken();
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
       const response = await fetch(`/api/v1/gateways/devices?board_id=${selectedBoardId}`, {
-        // Next.js will automatically send cookies for same-origin requests
+        headers
       });
       if (!response.ok) {
         throw new Error(`Failed to fetch devices: ${response.statusText}`);
@@ -51,8 +53,11 @@ export default function DevicesPage() {
 
   const handleAction = async (requestId: string, action: "approve" | "reject") => {
     try {
+      const token = await getToken();
+      const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
       const response = await fetch(`/api/v1/gateways/devices/${requestId}/${action}?board_id=${selectedBoardId}`, {
         method: "POST",
+        headers
       });
       if (!response.ok) throw new Error(`Failed to ${action} device`);
       // Refresh list

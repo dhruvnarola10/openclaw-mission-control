@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/auth/clerk";
 
 export default function ChatWindow() {
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, getToken } = useAuth();
   const { data: boardsData, isLoading: isLoadingBoards } = useListBoardsApiV1BoardsGet(
     undefined,
     {
@@ -34,24 +34,37 @@ export default function ChatWindow() {
 
   useEffect(() => {
     if (!selectedBoardId) return;
-    setIsLoadingSessions(true);
-    // Fetch Sessions
-    fetch(`/api/v1/gateways/chat/sessions?board_id=${selectedBoardId}`)
-      .then(r => r.json())
-      .then(d => {
-        if (d && d.sessions) setSessions(d.sessions);
-      })
-      .catch(e => console.error(e))
-      .finally(() => setIsLoadingSessions(false));
-      
-    // Fetch Slash Commands
-    fetch(`/api/v1/gateways/chat/slash-commands?board_id=${selectedBoardId}`)
-      .then(r => r.json())
-      .then(d => {
-        if (d && Array.isArray(d)) setSlashCommands(d);
-      })
-      .catch(e => console.error(e));
-  }, [selectedBoardId]);
+    
+    const load = async () => {
+      setIsLoadingSessions(true);
+      try {
+        const token = await getToken();
+        const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+        
+        // Fetch Sessions
+        fetch(`/api/v1/gateways/chat/sessions?board_id=${selectedBoardId}`, { headers })
+          .then(r => r.json())
+          .then(d => {
+            if (d && d.sessions) setSessions(d.sessions);
+          })
+          .catch(e => console.error(e))
+          .finally(() => setIsLoadingSessions(false));
+          
+        // Fetch Slash Commands
+        fetch(`/api/v1/gateways/chat/slash-commands?board_id=${selectedBoardId}`, { headers })
+          .then(r => r.json())
+          .then(d => {
+            if (d && Array.isArray(d)) setSlashCommands(d);
+          })
+          .catch(e => console.error(e));
+      } catch (e) {
+        console.error(e);
+        setIsLoadingSessions(false);
+      }
+    };
+    
+    load();
+  }, [selectedBoardId, getToken]);
 
   const handleBoardChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setSelectedBoardId(e.target.value);
@@ -62,6 +75,25 @@ export default function ChatWindow() {
   };
 
   const sessionKey = selectedSessionKey;
+
+  // Group sessions by appId or infer from key
+  const groupedSessions = sessions.reduce((acc: Record<string, any[]>, s: any) => {
+    let group = s.appId;
+    if (!group) {
+      if (s.key?.startsWith('agent:')) {
+        group = s.key.split(':')[1];
+      } else {
+        group = 'Other';
+      }
+    }
+    // Pretty print the gateway agent group name
+    if (group.startsWith('mc-gateway-') || s.key === 'gateway') {
+      group = `OpenClaw Gateway Agent (${group})`;
+    }
+    if (!acc[group]) acc[group] = [];
+    acc[group].push(s);
+    return acc;
+  }, {});
 
   const { messages, streamStatus, error, sendMessage, stopStream } =
     useOpenClawChat(sessionKey, selectedBoardId);
@@ -140,12 +172,18 @@ export default function ChatWindow() {
               <select
                 value={selectedSessionKey}
                 onChange={handleSessionChange}
-                className="border-none bg-transparent py-0 pl-1 pr-6 text-slate-700 dark:text-slate-300 font-medium focus:ring-0 text-sm cursor-pointer max-w-[150px] truncate"
+                className="border-none bg-transparent py-0 pl-1 pr-6 text-slate-700 dark:text-slate-300 font-medium focus:ring-0 text-sm cursor-pointer max-w-[200px] truncate"
                 disabled={isStreaming}
               >
                 <option value="mc-global-chat">Global Chat</option>
-                {sessions.map((s) => (
-                  <option key={s.key} value={s.key}>{s.label || s.key}</option>
+                {Object.entries(groupedSessions).map(([groupName, groupSessions]: [string, any]) => (
+                  <optgroup key={groupName} label={groupName}>
+                    {groupSessions.map((s: any) => (
+                      <option key={s.key} value={s.key}>
+                        {s.label || s.key.replace(/^agent:[^:]+:/, '')}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
             )}
