@@ -15,7 +15,6 @@ import {
 import { useListBoardsApiV1BoardsGet } from "@/api/generated/boards/boards";
 import { useAuth } from "@/auth/clerk";
 import { cn } from "@/lib/utils";
-import { useGatewayConfig } from "@/hooks/useGatewayConfig";
 import { useOpenClawChat } from "@/hooks/useOpenClawChat";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -113,18 +112,14 @@ export default function ChatWindow() {
     }
   }, [boards, selectedBoardId]);
 
-  // ── Gateway config (for connection status indicator) ───────────────────────
-  const gwConfig = useGatewayConfig(selectedBoardId || undefined);
-
-  const wsStatus = gwConfig
-    ? "connected"
-    : selectedBoardId
-    ? "connecting"
-    : "disconnected";
-
   // ── SSE-based chat (uses /v1/responses via /api/v1/gateways/chat/stream) ───
   const { messages, streamStatus, error, sendMessage, stopStream } =
     useOpenClawChat(sessionKey, selectedBoardId || undefined);
+
+  // Derive a simple status — no WebSocket needed since we use SSE
+  const wsStatus: "connected" | "connecting" | "disconnected" = selectedBoardId
+    ? "connected"
+    : "disconnected";
 
   const isStreaming = streamStatus === "streaming";
   const canSend = !!input.trim() && !!selectedBoardId && !isStreaming;
@@ -164,8 +159,8 @@ export default function ChatWindow() {
 
   // ── Status config ──────────────────────────────────────────────────────────
   const statusCfg = {
-    connected: { dot: "bg-emerald-400", label: "Connected", Icon: Wifi },
-    connecting: { dot: "bg-amber-400 animate-pulse", label: "Resolving…", Icon: Wifi },
+    connected:    { dot: "bg-emerald-400", label: "Ready · SSE", Icon: Wifi },
+    connecting:   { dot: "bg-amber-400 animate-pulse", label: "Connecting…", Icon: Wifi },
     disconnected: { dot: "bg-slate-500", label: "Select a board", Icon: WifiOff },
   }[wsStatus];
 

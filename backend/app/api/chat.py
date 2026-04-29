@@ -48,6 +48,10 @@ class ChatStreamRequest(BaseModel):
     board_id: str
     instructions: str | None = None
     agent_id: str | None = None
+    # Optional overrides — frontend can supply these from env vars so the
+    # backend does not need the token stored in the board DB config.
+    gateway_token: str | None = None
+    gateway_url: str | None = None
 
 
 def _to_http_base(ws_url: str) -> str:
@@ -113,8 +117,9 @@ async def chat_stream(
 
     await require_board_access(session, user=auth.user, board=board, write=True)
 
-    gateway_http = _to_http_base(config.url)
-    token = config.token
+    gateway_http = _to_http_base(payload.gateway_url or config.url)
+    # Frontend-supplied token takes precedence over the board DB config token
+    token = payload.gateway_token or config.token
 
     model = f"openclaw/{payload.agent_id}" if payload.agent_id else "openclaw"
     request_payload: dict[str, Any] = {

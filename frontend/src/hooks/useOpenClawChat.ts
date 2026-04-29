@@ -77,7 +77,7 @@ export function useOpenClawChat(
       abortRef.current = new AbortController();
 
       try {
-        const res = await fetch("/api/v1/gateways/chat/stream", {
+        const res = await fetch("/api/v1/chat/stream", {
           method: "POST",
           headers: { 
             "Content-Type": "application/json",
@@ -86,10 +86,18 @@ export function useOpenClawChat(
           body: JSON.stringify({
             message: text,
             board_id: boardId,
-            // Using direct sessionKey to support Telegram/Gateway options correctly
             session_key: sessionKey,
             ...(agentId ? { agent_id: agentId } : {}),
             ...(instructions ? { instructions } : {}),
+            // Inject gateway credentials from public env vars when available.
+            // This lets the backend authenticate even if the board DB config
+            // does not have the token saved yet.
+            ...(process.env.NEXT_PUBLIC_OPENCLAW_GATEWAY_TOKEN
+              ? { gateway_token: process.env.NEXT_PUBLIC_OPENCLAW_GATEWAY_TOKEN }
+              : {}),
+            ...(process.env.NEXT_PUBLIC_OPENCLAW_GATEWAY_URL
+              ? { gateway_url: process.env.NEXT_PUBLIC_OPENCLAW_GATEWAY_URL }
+              : {}),
           }),
           signal: abortRef.current.signal,
         });
