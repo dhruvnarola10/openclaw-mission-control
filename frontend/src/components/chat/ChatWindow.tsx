@@ -64,7 +64,8 @@ export default function ChatWindow() {
     };
     
     load();
-  }, [selectedBoardId, getToken]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedBoardId]);
 
   const handleBoardChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setSelectedBoardId(e.target.value);

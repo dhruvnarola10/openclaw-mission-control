@@ -57,7 +57,8 @@ export function useOpenClawChat(
     };
     
     fetchHistory();
-  }, [boardId, sessionKey, getToken]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boardId, sessionKey]);
 
   const sendMessage = useCallback(
     async (text: string, instructions?: string) => {
@@ -152,7 +153,8 @@ export function useOpenClawChat(
         setStreamStatus("error");
       }
     },
-    [boardId, sessionKey, agentId, getToken]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [boardId, sessionKey, agentId]
   );
 
   const stopStream = useCallback(() => {
