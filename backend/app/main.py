@@ -24,6 +24,7 @@ from app.api.boards import router as boards_router
 from app.api.chat import router as chat_router
 from app.api.gateway import router as gateway_router
 from app.api.gateway_chat import router as gateway_chat_router
+from app.api.gateway_devices import router as gateway_devices_router
 from app.api.gateways import router as gateways_router
 from app.api.metrics import router as metrics_router
 from app.api.organizations import router as organizations_router
@@ -546,6 +547,7 @@ api_v1.include_router(activity_router)
 api_v1.include_router(chat_router)
 api_v1.include_router(gateway_router)
 api_v1.include_router(gateway_chat_router)
+api_v1.include_router(gateway_devices_router)
 api_v1.include_router(gateways_router)
 api_v1.include_router(metrics_router)
 api_v1.include_router(organizations_router)

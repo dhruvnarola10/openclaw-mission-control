@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, useEffect } from "react";
 
 export type ChatMessage = {
   id: string;
@@ -14,6 +14,43 @@ export function useOpenClawChat(sessionKey: string, boardId: string | undefined,
   const [streamStatus, setStreamStatus] = useState<StreamStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+
+  // Fetch chat history when session changes
+  
+  useEffect(() => {
+    if (!boardId || !sessionKey) {
+      setMessages([]);
+      return;
+    }
+    
+    setStreamStatus("idle");
+    setError(null);
+    
+    const fetchHistory = async () => {
+      try {
+        const res = await fetch(`/api/v1/gateways/sessions/${encodeURIComponent(sessionKey)}/history?board_id=${boardId}`);
+        if (!res.ok) throw new Error("Failed to fetch history");
+        const data = await res.json();
+        if (data && Array.isArray(data.history)) {
+          // Map OpenClaw history format to ChatMessage format
+          const formattedHistory = data.history.map((msg: any) => ({
+            id: msg.id || crypto.randomUUID(),
+            role: msg.role === "user" ? "user" : "assistant",
+            content: msg.content || msg.text || "",
+            tokens: msg.tokens,
+          }));
+          setMessages(formattedHistory);
+        } else {
+          setMessages([]);
+        }
+      } catch (err: any) {
+        console.error("Error fetching history:", err);
+        setMessages([]);
+      }
+    };
+    
+    fetchHistory();
+  }, [boardId, sessionKey]);
 
   const sendMessage = useCallback(async (text: string, instructions?: string) => {
     if (!boardId || !text.trim()) return;
@@ -36,7 +73,7 @@ export function useOpenClawChat(sessionKey: string, boardId: string | undefined,
         body: JSON.stringify({
           message: text,
           board_id: boardId,
-          session_key: `agent:main:${sessionKey}`,
+          session_key: sessionKey,
           ...(agentId ? { agent_id: agentId } : {}),
           ...(instructions ? { instructions } : {}),
         }),

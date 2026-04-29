@@ -21,6 +21,10 @@ export default function ChatWindow() {
   
   const boards = boardsData?.status === 200 ? (boardsData.data.items ?? []) : [];
   const [selectedBoardId, setSelectedBoardId] = useState<string>("");
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [selectedSessionKey, setSelectedSessionKey] = useState<string>("mc-global-chat");
+  const [slashCommands, setSlashCommands] = useState<any[]>([]);
+  const [isLoadingSessions, setIsLoadingSessions] = useState(false);
 
   useEffect(() => {
     if (boards.length > 0 && !selectedBoardId) {
@@ -28,11 +32,36 @@ export default function ChatWindow() {
     }
   }, [boards, selectedBoardId]);
 
+  useEffect(() => {
+    if (!selectedBoardId) return;
+    setIsLoadingSessions(true);
+    // Fetch Sessions
+    fetch(`/api/v1/gateways/sessions?board_id=${selectedBoardId}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d && d.sessions) setSessions(d.sessions);
+      })
+      .catch(e => console.error(e))
+      .finally(() => setIsLoadingSessions(false));
+      
+    // Fetch Slash Commands
+    fetch(`/api/v1/gateways/slash-commands?board_id=${selectedBoardId}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d && Array.isArray(d)) setSlashCommands(d);
+      })
+      .catch(e => console.error(e));
+  }, [selectedBoardId]);
+
   const handleBoardChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setSelectedBoardId(e.target.value);
   };
 
-  const sessionKey = "mc-global-chat";
+  const handleSessionChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedSessionKey(e.target.value);
+  };
+
+  const sessionKey = selectedSessionKey;
 
   const { messages, streamStatus, error, sendMessage, stopStream } =
     useOpenClawChat(sessionKey, selectedBoardId);
@@ -82,24 +111,45 @@ export default function ChatWindow() {
           </span>
         </div>
 
-        <div className="flex items-center gap-2 text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md px-3 py-1.5 shadow-sm">
-          <span className="text-slate-500 dark:text-slate-400 font-medium whitespace-nowrap">Active Board:</span>
-          {isLoadingBoards ? (
-            <span className="text-slate-400">Loading...</span>
-          ) : boards.length === 0 ? (
-            <span className="text-rose-500">No boards</span>
-          ) : (
-            <select
-              value={selectedBoardId}
-              onChange={handleBoardChange}
-              className="border-none bg-transparent py-0 pl-1 pr-6 text-slate-700 dark:text-slate-300 font-medium focus:ring-0 text-sm cursor-pointer w-full"
-              disabled={isStreaming}
-            >
-              {boards.map((b) => (
-                <option key={b.id} value={b.id}>{b.name}</option>
-              ))}
-            </select>
-          )}
+        <div className="flex flex-col md:flex-row md:items-center gap-4 text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md px-3 py-1.5 shadow-sm overflow-hidden">
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-slate-500 dark:text-slate-400 font-medium whitespace-nowrap">Active Board:</span>
+            {isLoadingBoards ? (
+              <span className="text-slate-400">Loading...</span>
+            ) : boards.length === 0 ? (
+              <span className="text-rose-500">No boards</span>
+            ) : (
+              <select
+                value={selectedBoardId}
+                onChange={handleBoardChange}
+                className="border-none bg-transparent py-0 pl-1 pr-6 text-slate-700 dark:text-slate-300 font-medium focus:ring-0 text-sm cursor-pointer max-w-[150px] truncate"
+                disabled={isStreaming}
+              >
+                {boards.map((b) => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+            )}
+          </div>
+          <div className="hidden md:block w-px h-4 bg-slate-200 dark:bg-slate-700"></div>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-slate-500 dark:text-slate-400 font-medium whitespace-nowrap">Session:</span>
+            {isLoadingSessions ? (
+              <span className="text-slate-400">Loading...</span>
+            ) : (
+              <select
+                value={selectedSessionKey}
+                onChange={handleSessionChange}
+                className="border-none bg-transparent py-0 pl-1 pr-6 text-slate-700 dark:text-slate-300 font-medium focus:ring-0 text-sm cursor-pointer max-w-[150px] truncate"
+                disabled={isStreaming}
+              >
+                <option value="mc-global-chat">Global Chat</option>
+                {sessions.map((s) => (
+                  <option key={s.key} value={s.key}>{s.label || s.key}</option>
+                ))}
+              </select>
+            )}
+          </div>
         </div>
       </div>
 
@@ -164,7 +214,28 @@ export default function ChatWindow() {
         </div>
 
         {/* Input area */}
-        <div className="border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 md:p-4 shrink-0">
+        <div className="border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 md:p-4 shrink-0 relative">
+          {input.startsWith("/") && slashCommands.length > 0 && (
+             <ul className="absolute bottom-full left-4 mb-2 w-80 max-h-60 overflow-y-auto bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl z-10 divide-y divide-slate-100 dark:divide-slate-700">
+                {slashCommands.filter(c => ("/" + c.name).startsWith(input.toLowerCase())).length > 0 ? (
+                  slashCommands.filter(c => ("/" + c.name).startsWith(input.toLowerCase())).map(cmd => (
+                    <li 
+                      key={cmd.name} 
+                      className="p-3 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer transition-colors" 
+                      onClick={() => {
+                        setInput("/" + cmd.name + " ");
+                        textareaRef.current?.focus();
+                      }}
+                    >
+                      <div className="font-bold text-sm text-indigo-600 dark:text-indigo-400">/{cmd.name}</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">{cmd.description}</div>
+                    </li>
+                  ))
+                ) : (
+                  <li className="p-3 text-xs text-slate-400">No matching commands.</li>
+                )}
+             </ul>
+          )}
           <div className="flex gap-2 flex-col sm:flex-row items-end">
             <textarea
               ref={textareaRef}

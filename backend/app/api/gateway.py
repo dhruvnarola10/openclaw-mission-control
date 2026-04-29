@@ -152,3 +152,24 @@ async def gateway_commands(
         methods=GATEWAY_METHODS,
         events=GATEWAY_EVENTS,
     )
+
+
+@router.get("/slash-commands")
+async def gateway_slash_commands(
+    params: GatewayResolveQuery = RESOLVE_INPUT_DEP,
+    session: AsyncSession = SESSION_DEP,
+    auth: AuthContext = AUTH_DEP,
+    ctx: OrganizationContext = ORG_ADMIN_DEP,
+) -> dict:
+    """Return runtime slash commands available on the gateway."""
+    service = GatewaySessionService(session)
+    board, config, _main_session = await service.resolve_gateway(
+        params, user=auth.user, organization_id=ctx.organization.id
+    )
+    
+    from app.services.openclaw.gateway_rpc import openclaw_call
+    return await openclaw_call(
+        "commands.list",
+        {"scope": "text", "includeArgs": True},
+        config=config,
+    )
