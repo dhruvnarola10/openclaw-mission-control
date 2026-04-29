@@ -28,7 +28,7 @@ export function useOpenClawChat(sessionKey: string, boardId: string | undefined,
     
     const fetchHistory = async () => {
       try {
-        const res = await fetch(`/api/v1/gateways/sessions/${encodeURIComponent(sessionKey)}/history?board_id=${boardId}`);
+        const res = await fetch(`/api/v1/gateways/chat/sessions/${encodeURIComponent(sessionKey)}/history?board_id=${boardId}`);
         if (!res.ok) throw new Error("Failed to fetch history");
         const data = await res.json();
         if (data && Array.isArray(data.history)) {

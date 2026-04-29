@@ -5,7 +5,6 @@ import { Check, X, Shield, RefreshCw } from "lucide-react";
 import { DashboardPageLayout } from "@/components/templates/DashboardPageLayout";
 import { useListBoardsApiV1BoardsGet } from "@/api/generated/boards/boards";
 import { useAuth } from "@/auth/clerk";
-import { useAuthHeaders } from "@/hooks/useAuthHeaders"; // Assuming standard auth hooks exist, or we rely on fetch interceptors. Wait, they use fetch, so we should rely on cookies/credentials. Orval handles it for them. We will use standard fetch with credentials.
 
 export default function DevicesPage() {
   const { isSignedIn } = useAuth();

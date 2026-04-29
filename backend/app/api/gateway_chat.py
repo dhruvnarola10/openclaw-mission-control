@@ -12,6 +12,7 @@ from app.core.auth import AuthContext, get_auth_context
 from app.db.session import get_session
 from app.schemas.gateway_api import GatewayResolveQuery
 from app.services.openclaw.session_service import GatewaySessionService
+from app.services.openclaw.gateway_rpc import openclaw_call, get_chat_history
 from app.services.organizations import OrganizationContext
 
 router = APIRouter(prefix="/gateways/chat", tags=["chat"])
@@ -83,3 +84,55 @@ async def _stream(url, token, body) -> AsyncGenerator[str, None]:
                 yield "data: [DONE]\n\n"; return
     except Exception as e:
         yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
+@router.get("/sessions")
+async def list_sessions(
+    board_id: str,
+    session: AsyncSession = Depends(get_session),
+    auth: AuthContext = Depends(get_auth_context),
+    ctx: OrganizationContext = Depends(require_org_admin),
+):
+    service = GatewaySessionService(session)
+    params = GatewayResolveQuery(board_id=board_id)
+    board, config, _main_session = await service.resolve_gateway(
+        params, user=auth.user, organization_id=ctx.organization.id
+    )
+    if not config:
+        raise HTTPException(404, "Gateway not found")
+    res = await openclaw_call("sessions.list", config=config)
+    return {"sessions": res} if isinstance(res, list) else res
+
+@router.get("/slash-commands")
+async def list_slash_commands(
+    board_id: str,
+    session: AsyncSession = Depends(get_session),
+    auth: AuthContext = Depends(get_auth_context),
+    ctx: OrganizationContext = Depends(require_org_admin),
+):
+    service = GatewaySessionService(session)
+    params = GatewayResolveQuery(board_id=board_id)
+    board, config, _main_session = await service.resolve_gateway(
+        params, user=auth.user, organization_id=ctx.organization.id
+    )
+    if not config:
+        raise HTTPException(404, "Gateway not found")
+    res = await openclaw_call("commands.list", {"scope": "text", "includeArgs": True}, config=config)
+    return res.get("commands", []) if isinstance(res, dict) else res
+
+@router.get("/sessions/{session_key}/history")
+async def get_history(
+    session_key: str,
+    board_id: str,
+    session: AsyncSession = Depends(get_session),
+    auth: AuthContext = Depends(get_auth_context),
+    ctx: OrganizationContext = Depends(require_org_admin),
+):
+    service = GatewaySessionService(session)
+    params = GatewayResolveQuery(board_id=board_id)
+    board, config, _main_session = await service.resolve_gateway(
+        params, user=auth.user, organization_id=ctx.organization.id
+    )
+    if not config:
+        raise HTTPException(404, "Gateway not found")
+    res = await get_chat_history(session_key, config=config, limit=50)
+    return {"history": res} if isinstance(res, list) else res

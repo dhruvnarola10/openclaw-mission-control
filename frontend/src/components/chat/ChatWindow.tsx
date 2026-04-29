@@ -36,7 +36,7 @@ export default function ChatWindow() {
     if (!selectedBoardId) return;
     setIsLoadingSessions(true);
     // Fetch Sessions
-    fetch(`/api/v1/gateways/sessions?board_id=${selectedBoardId}`)
+    fetch(`/api/v1/gateways/chat/sessions?board_id=${selectedBoardId}`)
       .then(r => r.json())
       .then(d => {
         if (d && d.sessions) setSessions(d.sessions);
@@ -45,7 +45,7 @@ export default function ChatWindow() {
       .finally(() => setIsLoadingSessions(false));
       
     // Fetch Slash Commands
-    fetch(`/api/v1/gateways/slash-commands?board_id=${selectedBoardId}`)
+    fetch(`/api/v1/gateways/chat/slash-commands?board_id=${selectedBoardId}`)
       .then(r => r.json())
       .then(d => {
         if (d && Array.isArray(d)) setSlashCommands(d);
