@@ -111,6 +111,7 @@ export function useOpenClawChat(
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let buf = "";
+        let currentEvent = "";
 
         while (true) {
           const { done, value } = await reader.read();
@@ -120,20 +121,45 @@ export function useOpenClawChat(
           buf = lines.pop() ?? "";
 
           for (const line of lines) {
+            // Track SSE event type (e.g. "event: response.output_text.delta")
+            if (line.startsWith("event: ")) {
+              currentEvent = line.slice(7).trim();
+              continue;
+            }
+
             if (!line.startsWith("data: ")) continue;
-            if (line === "data: [DONE]") {
+
+            const raw = line.slice(6).trim();
+
+            // Legacy [DONE] sentinel (chat-completions style)
+            if (raw === "[DONE]") {
               setStreamStatus("done");
               return;
             }
+
             try {
-              const p = JSON.parse(line.slice(6));
+              const p = JSON.parse(raw);
               if (p.error) throw new Error(p.error);
 
-              // OpenAI format + custom format dono handle karo
+              // OpenAI Responses API — stream finished
+              if (
+                p.type === "response.completed" ||
+                p.type === "response.done" ||
+                currentEvent === "response.completed"
+              ) {
+                setStreamStatus("done");
+                return;
+              }
+
+              // Extract delta text — handles:
+              //   OpenAI Responses API: { type:"response.output_text.delta", delta:"…" }
+              //   OpenAI Chat Completions: { choices:[{ delta:{ content:"…" } }] }
+              //   Our normalized SSE:  { delta:"…" }
               const delta =
-                p.delta ||
-                p.choices?.[0]?.delta?.content ||
-                p.choices?.[0]?.text ||
+                (p.type === "response.output_text.delta" ? p.delta : undefined) ??
+                p.delta ??
+                p.choices?.[0]?.delta?.content ??
+                p.choices?.[0]?.text ??
                 "";
 
               if (delta) {
@@ -148,6 +174,9 @@ export function useOpenClawChat(
             } catch (e) {
               if (e instanceof Error && e.name !== "SyntaxError") throw e;
             }
+
+            // Reset event name after processing its data line
+            currentEvent = "";
           }
         }
         setStreamStatus("done");
