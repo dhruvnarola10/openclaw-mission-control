@@ -185,6 +185,13 @@ def _build_gateway_url(config: GatewayConfig) -> str:
     if not base_url:
         message = "Gateway URL is not configured."
         raise OpenClawGatewayError(message)
+        
+    parsed_base = urlparse(base_url)
+    if parsed_base.scheme == "http":
+        base_url = urlunparse(parsed_base._replace(scheme="ws"))
+    elif parsed_base.scheme == "https":
+        base_url = urlunparse(parsed_base._replace(scheme="wss"))
+        
     token = config.token
     if not token:
         return base_url
