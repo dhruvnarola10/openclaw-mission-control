@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { useGatewayConfig } from "@/hooks/useGatewayConfig";
 import { useGatewayWS } from "@/hooks/useGatewayWS";
 
-const DEFAULT_SESSION_KEY = "agent:main:mc-global-chat";
+const DEFAULT_SESSION_KEY = "main";
 
 export default function ChatWindow() {
   const { isSignedIn } = useAuth();
@@ -125,8 +125,8 @@ export default function ChatWindow() {
               onChange={(e) => setSelectedSessionKey(e.target.value)}
               className="border-none bg-transparent py-0 pl-1 pr-6 text-slate-700 dark:text-slate-300 font-medium focus:ring-0 text-sm cursor-pointer max-w-[200px] truncate"
             >
-              <option value="agent:main:mc-global-chat">Global Chat</option>
-              <option value="agent:main">Main</option>
+              <option value="main">Main</option>
+              <option value="global-chat">Global Chat</option>
             </select>
           </div>
         </div>

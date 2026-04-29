@@ -132,7 +132,7 @@ export function useGatewayWS({ config, sessionKey }: UseGatewayWSOptions) {
             id: "openclaw-control-ui",
             version: "mc-dashboard",
             platform: "web",
-            mode: "webchat",
+            mode: "operator",
           },
           auth: { token: cfg.token },
           userAgent: navigator.userAgent,
@@ -156,17 +156,18 @@ export function useGatewayWS({ config, sessionKey }: UseGatewayWSOptions) {
           resolve(frame);
           pendingRef.current.delete(fid);
         }
-
-        // The "connect" response is the hello-ok frame
-        if ((frame as any).ok === true && !wsStatus) {
-          setWsStatus("connected");
-          loadHistory();
-        }
         return;
       }
 
-      // ── hello-ok (first successful connect response) ─────────────────
-      if (ftype === "hello-ok" || (ftype === "res" && (frame as any).ok === true)) {
+      // ── hello-ok (connect RPC ack → gateway is ready) ────────────────
+      if (ftype === "res" && fid && (frame as any).ok === true) {
+        setWsStatus("connected");
+        loadHistory();
+        return;
+      }
+
+      // ── hello-ok legacy frame type ────────────────────────────────────
+      if (ftype === "hello-ok") {
         setWsStatus("connected");
         loadHistory();
         return;
@@ -286,7 +287,6 @@ export function useGatewayWS({ config, sessionKey }: UseGatewayWSOptions) {
       await rpc("chat.send", {
         sessionKey: sessionKeyRef.current,
         message: text,
-        deliver: false,
         idempotencyKey: crypto.randomUUID(),
       });
       // After ack, gateway will start emitting "chat" events (delta/final)

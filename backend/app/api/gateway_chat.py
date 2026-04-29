@@ -72,7 +72,7 @@ async def get_ws_config(
 class ChatStreamRequest(BaseModel):
     board_id: str
     message: str
-    session_key: str = "agent:main:mc-global-chat"
+    session_key: str = "main"
 
 
 # ---------------------------------------------------------------------------
@@ -146,7 +146,6 @@ async def _stream_chat(
                 "params": {
                     "sessionKey": session_key,
                     "message": message,
-                    "deliver": False,
                     "idempotencyKey": str(uuid.uuid4()),
                 },
             }))
