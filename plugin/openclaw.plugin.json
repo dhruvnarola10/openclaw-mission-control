@@ -5,11 +5,11 @@
   },
   "channels": ["mission-control"],
   "channelEnvVars": {
-    "mission-control": ["MC_PLUGIN_SHARED_SECRET"]
+    "mission-control": ["1d0f29f007d74d058d8479975bb0ad5d9ddb82ae5e4795e9ebf8cd5589e21f49"]
   },
   "configSchema": {
     "type": "object",
-    "additionalProperties": false,
+    "additionalProperties": true,
     "properties": {}
   }
 }

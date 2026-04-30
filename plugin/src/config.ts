@@ -10,8 +10,19 @@ export type MCPluginConfig = {
 
 export function resolveMCPluginConfig(cfg: Record<string, unknown>): MCPluginConfig | null {
   const plugins = cfg?.plugins as Record<string, unknown> | undefined;
-  const raw = plugins?.[PLUGIN_ID] as Record<string, unknown> | undefined;
+  if (!plugins) return null;
+
+  // Check plugins.entries["mission-control-chat"].config  (openclaw standard location)
+  const entries = plugins.entries as Record<string, unknown> | undefined;
+  const entry = entries?.[PLUGIN_ID] as Record<string, unknown> | undefined;
+  const fromEntry = entry?.config as Record<string, unknown> | undefined;
+
+  // Fallback: check plugins["mission-control-chat"] directly
+  const fromDirect = plugins[PLUGIN_ID] as Record<string, unknown> | undefined;
+
+  const raw = fromEntry ?? fromDirect;
   if (!raw) return null;
+
   const callbackUrl = typeof raw.callbackUrl === "string" ? raw.callbackUrl.trim() : "";
   const sharedSecret = typeof raw.sharedSecret === "string" ? raw.sharedSecret.trim() : "";
   if (!callbackUrl || !sharedSecret) return null;
