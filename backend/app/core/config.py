@@ -84,6 +84,12 @@ class Settings(BaseSettings):
     # OpenClaw gateway runtime compatibility
     gateway_min_version: str = "2026.02.9"
 
+    # Mission Control plugin-chat bridge
+    # Shared secret that the openclaw channel plugin uses to authenticate callbacks.
+    mc_plugin_shared_secret: str = ""
+    # URL of the running OpenClaw gateway (used to forward inbound messages to the plugin).
+    mc_plugin_openclaw_gateway_url: str = "http://localhost:18789"
+
     # Logging
     log_level: str = "INFO"
     log_format: str = "text"

@@ -22,6 +22,7 @@ from app.api.board_onboarding import router as board_onboarding_router
 from app.api.board_webhooks import router as board_webhooks_router
 from app.api.boards import router as boards_router
 from app.api.chat import router as chat_router
+from app.api.plugin_chat import router as plugin_chat_router
 from app.api.gateway import router as gateway_router
 from app.api.gateway_chat import router as gateway_chat_router
 from app.api.gateway_devices import router as gateway_devices_router
@@ -545,6 +546,7 @@ api_v1.include_router(agent_router)
 api_v1.include_router(agents_router)
 api_v1.include_router(activity_router)
 api_v1.include_router(chat_router)
+api_v1.include_router(plugin_chat_router)
 api_v1.include_router(gateway_router)
 api_v1.include_router(gateway_chat_router)
 api_v1.include_router(gateway_devices_router)

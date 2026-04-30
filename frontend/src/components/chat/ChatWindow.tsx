@@ -9,10 +9,12 @@ import {
   Send,
   Square,
   Wifi,
+  Plug,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useGatewaySSEChat } from "@/hooks/useGatewaySSEChat";
+import { usePluginChat } from "@/hooks/usePluginChat";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -68,15 +70,31 @@ function RenderText({ text }: { text: string }) {
   );
 }
 
+// ── Mode toggle ───────────────────────────────────────────────────────────────
+
+type ChatMode = "direct" | "plugin";
+
+const BOARD_ID = process.env.NEXT_PUBLIC_MC_CHAT_BOARD_ID ?? "";
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function ChatWindow() {
   const [sessionKey, setSessionKey] = useState<string>(newSessionKey);
   const [input, setInput]           = useState<string>("");
+  const [mode, setMode]             = useState<ChatMode>(BOARD_ID ? "plugin" : "direct");
 
-  // Direct gateway SSE — calls http://127.0.0.1:18789/v1/responses
-  const { messages, streamStatus, error, sendMessage, stopStream, clearMessages } =
-    useGatewaySSEChat(sessionKey);
+  // ── Direct-gateway mode (original behaviour) ───────────────────────────────
+  const directChat = useGatewaySSEChat(sessionKey);
+
+  // ── Plugin-bridge mode (routes via MC backend + openclaw channel plugin) ───
+  const pluginChat = usePluginChat({
+    boardId: BOARD_ID,
+    sessionKey,
+    agentId: process.env.NEXT_PUBLIC_MC_CHAT_AGENT_ID ?? "main",
+  });
+
+  const chat = mode === "plugin" ? pluginChat : directChat;
+  const { messages, streamStatus, error, sendMessage, stopStream, clearMessages } = chat;
 
   const isStreaming = streamStatus === "streaming";
   const canSend     = !!input.trim() && !isStreaming;
@@ -116,10 +134,22 @@ export default function ChatWindow() {
     setInput("");
   };
 
-  // ── Gateway URL for display ────────────────────────────────────────────────
+  const handleModeSwitch = (next: ChatMode) => {
+    clearMessages();
+    setMode(next);
+    setSessionKey(newSessionKey());
+    setInput("");
+  };
+
+  // ── Labels ─────────────────────────────────────────────────────────────────
   const gatewayDisplay =
     (process.env.NEXT_PUBLIC_OPENCLAW_GATEWAY_URL ?? "http://127.0.0.1:18789")
       .replace(/^https?:\/\//, "");
+
+  const modeLabel =
+    mode === "plugin"
+      ? `board:${BOARD_ID || "?"} · MC plugin`
+      : `${gatewayDisplay} · /v1/responses`;
 
   return (
     <div className="flex flex-col h-[calc(100vh-148px)] min-h-[520px] max-w-4xl mx-auto w-full">
@@ -130,22 +160,52 @@ export default function ChatWindow() {
         {/* Brand + status */}
         <div className="flex items-center gap-3 min-w-0">
           <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-blue-600/20 border border-blue-500/30 shrink-0">
-            <Bot className="h-4 w-4 text-blue-400" />
+            {mode === "plugin"
+              ? <Plug className="h-4 w-4 text-violet-400" />
+              : <Bot  className="h-4 w-4 text-blue-400" />}
           </div>
           <div className="min-w-0">
             <p className="text-sm font-semibold text-slate-100 leading-none">OpenClaw Chat</p>
             <div className="flex items-center gap-1.5 mt-0.5">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shrink-0" />
               <Wifi className="h-3 w-3 text-slate-500" />
-              <span className="text-[11px] text-slate-400 font-mono truncate">
-                {gatewayDisplay} · /v1/responses
-              </span>
+              <span className="text-[11px] text-slate-400 font-mono truncate">{modeLabel}</span>
             </div>
           </div>
         </div>
 
-        {/* Session + New Chat */}
+        {/* Mode toggle + Session + New Chat */}
         <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
+
+          {/* Mode switcher */}
+          <div className="flex rounded-lg border border-slate-700 overflow-hidden text-xs">
+            <button
+              onClick={() => handleModeSwitch("direct")}
+              className={cn(
+                "px-2.5 py-1.5 font-medium transition-colors",
+                mode === "direct"
+                  ? "bg-blue-600 text-white"
+                  : "bg-slate-800 text-slate-400 hover:text-slate-200",
+              )}
+            >
+              Direct
+            </button>
+            <button
+              onClick={() => handleModeSwitch("plugin")}
+              disabled={!BOARD_ID}
+              title={!BOARD_ID ? "Set NEXT_PUBLIC_MC_CHAT_BOARD_ID to enable" : undefined}
+              className={cn(
+                "px-2.5 py-1.5 font-medium transition-colors",
+                mode === "plugin"
+                  ? "bg-violet-600 text-white"
+                  : "bg-slate-800 text-slate-400 hover:text-slate-200",
+                !BOARD_ID && "opacity-40 cursor-not-allowed",
+              )}
+            >
+              Plugin
+            </button>
+          </div>
+
           <div className="flex items-center gap-1.5 bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5">
             <span className="text-[11px] text-slate-400 font-medium">Session</span>
             <span className="text-[11px] text-slate-300 font-mono truncate max-w-[110px]">
@@ -175,18 +235,30 @@ export default function ChatWindow() {
           </div>
         )}
 
+        {/* Plugin-mode no-board warning */}
+        {mode === "plugin" && !BOARD_ID && (
+          <div className="shrink-0 mx-4 mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-300">
+            Set <code className="font-mono text-xs">NEXT_PUBLIC_MC_CHAT_BOARD_ID</code> in{" "}
+            <code className="font-mono text-xs">frontend/.env</code> to use plugin mode.
+          </div>
+        )}
+
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
 
           {messages.length === 0 && !isStreaming && (
             <div className="flex flex-col items-center justify-center h-full text-center gap-3 py-16">
               <div className="flex items-center justify-center h-14 w-14 rounded-2xl bg-blue-600/15 border border-blue-500/20">
-                <Bot className="h-6 w-6 text-blue-400" />
+                {mode === "plugin"
+                  ? <Plug className="h-6 w-6 text-violet-400" />
+                  : <Bot  className="h-6 w-6 text-blue-400" />}
               </div>
               <div>
                 <p className="text-slate-300 font-medium text-sm">Start a conversation</p>
                 <p className="text-slate-500 text-xs mt-1">
-                  Direct SSE · {gatewayDisplay} · Enter to send
+                  {mode === "plugin"
+                    ? `Plugin mode · board:${BOARD_ID || "?"} · Enter to send`
+                    : `Direct SSE · ${gatewayDisplay} · Enter to send`}
                 </p>
               </div>
             </div>
@@ -202,8 +274,15 @@ export default function ChatWindow() {
             >
               {msg.role === "assistant" && (
                 <div className="shrink-0 flex items-end">
-                  <div className="h-7 w-7 rounded-full bg-blue-600/20 border border-blue-500/30 flex items-center justify-center">
-                    <Bot className="h-3.5 w-3.5 text-blue-400" />
+                  <div className={cn(
+                    "h-7 w-7 rounded-full border flex items-center justify-center",
+                    mode === "plugin"
+                      ? "bg-violet-600/20 border-violet-500/30"
+                      : "bg-blue-600/20 border-blue-500/30",
+                  )}>
+                    {mode === "plugin"
+                      ? <Plug className="h-3.5 w-3.5 text-violet-400" />
+                      : <Bot  className="h-3.5 w-3.5 text-blue-400" />}
                   </div>
                 </div>
               )}
@@ -217,7 +296,6 @@ export default function ChatWindow() {
                 <div className="flex items-start gap-2">
                   <div className="leading-relaxed whitespace-pre-wrap break-words flex-1">
                     {msg.role === "assistant" ? <RenderText text={msg.content} /> : msg.content}
-                    {/* Streaming cursor on last assistant bubble */}
                     {isStreaming && msg.role === "assistant" && msg.id === messages[messages.length - 1]?.id && (
                       <span className="inline-block w-0.5 h-4 bg-blue-400 ml-0.5 animate-pulse align-middle" />
                     )}
@@ -228,11 +306,18 @@ export default function ChatWindow() {
             </div>
           ))}
 
-          {/* Typing dots before first token */}
+          {/* Typing dots */}
           {isStreaming && messages[messages.length - 1]?.role !== "assistant" && (
             <div className="flex gap-2.5 mr-auto animate-fade-in">
-              <div className="h-7 w-7 rounded-full bg-blue-600/20 border border-blue-500/30 flex items-center justify-center shrink-0">
-                <Bot className="h-3.5 w-3.5 text-blue-400" />
+              <div className={cn(
+                "h-7 w-7 rounded-full border flex items-center justify-center shrink-0",
+                mode === "plugin"
+                  ? "bg-violet-600/20 border-violet-500/30"
+                  : "bg-blue-600/20 border-blue-500/30",
+              )}>
+                {mode === "plugin"
+                  ? <Plug className="h-3.5 w-3.5 text-violet-400" />
+                  : <Bot  className="h-3.5 w-3.5 text-blue-400" />}
               </div>
               <div className="flex items-center gap-1.5 bg-slate-800 border border-slate-700 rounded-2xl rounded-tl-none px-4 py-3">
                 <span className="h-2 w-2 rounded-full bg-slate-400 animate-bounce [animation-delay:-0.3s]" />
@@ -258,7 +343,7 @@ export default function ChatWindow() {
                 disabled={isStreaming}
                 placeholder={
                   isStreaming
-                    ? "Streaming response…"
+                    ? "Waiting for response…"
                     : "Message OpenClaw… (Enter ↵ to send, Shift+Enter for newline)"
                 }
                 rows={1}
@@ -289,7 +374,9 @@ export default function ChatWindow() {
                 className={cn(
                   "flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-xl text-white transition-all shadow-sm",
                   canSend
-                    ? "bg-blue-600 hover:bg-blue-500 hover:shadow-blue-500/30 hover:shadow-md"
+                    ? mode === "plugin"
+                      ? "bg-violet-600 hover:bg-violet-500"
+                      : "bg-blue-600 hover:bg-blue-500 hover:shadow-blue-500/30 hover:shadow-md"
                     : "bg-slate-700 cursor-not-allowed opacity-50",
                 )}
               >
@@ -299,7 +386,9 @@ export default function ChatWindow() {
           </div>
 
           <p className="mt-1.5 text-center text-[10px] text-slate-600">
-            Direct SSE · {gatewayDisplay}/v1/responses · Bearer token from env
+            {mode === "plugin"
+              ? `Plugin mode · MC backend → openclaw channel plugin · board:${BOARD_ID || "?"}`
+              : `Direct SSE · ${gatewayDisplay}/v1/responses · Bearer token from env`}
           </p>
         </div>
       </div>

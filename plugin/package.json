@@ -1,0 +1,16 @@
+{
+  "name": "@mission-control/openclaw-chat",
+  "version": "1.0.0",
+  "description": "OpenClaw channel plugin for Mission Control web chat",
+  "type": "module",
+  "dependencies": {},
+  "peerDependencies": {
+    "openclaw": ">=2026.0.0"
+  },
+  "peerDependenciesMeta": {
+    "openclaw": { "optional": true }
+  },
+  "openclaw": {
+    "extensions": ["./index.ts"]
+  }
+}
