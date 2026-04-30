@@ -1,0 +1,15 @@
+{
+  "id": "mission-control-chat",
+  "activation": {
+    "onStartup": false
+  },
+  "channels": ["mission-control"],
+  "channelEnvVars": {
+    "mission-control": ["MC_PLUGIN_SHARED_SECRET"]
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}
