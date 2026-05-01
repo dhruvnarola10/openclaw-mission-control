@@ -6,6 +6,7 @@ import logging
 import uuid
 from typing import TYPE_CHECKING, Any, AsyncGenerator
 
+import httpx
 import websockets
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
@@ -73,6 +74,91 @@ class ChatStreamRequest(BaseModel):
     board_id: str
     message: str
     session_key: str = "main"
+
+
+class ChatResponsesRequest(BaseModel):
+    board_id: str
+    message: str
+    session_key: str = "main"
+    agent_id: str = "main"
+
+
+# ---------------------------------------------------------------------------
+# POST /gateways/chat/responses  — proxy /v1/responses SSE from the gateway
+# ---------------------------------------------------------------------------
+
+@router.post("/responses")
+async def chat_responses_proxy(
+    body: ChatResponsesRequest,
+    session: AsyncSession = Depends(get_session),
+    auth: AuthContext = Depends(get_auth_context),
+    ctx: OrganizationContext = Depends(require_org_admin),
+):
+    """Proxy POST /v1/responses to the OpenClaw gateway, streaming SSE back to the browser."""
+    if auth.user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+
+    service = GatewaySessionService(session)
+    params = GatewayResolveQuery(board_id=body.board_id)
+    board, config, _main_session = await service.resolve_gateway(
+        params, user=auth.user, organization_id=ctx.organization.id
+    )
+    if not board:
+        raise HTTPException(404, "Board not found")
+    if not config:
+        raise HTTPException(404, "Gateway not found")
+
+    # Normalise to http(s) base URL
+    gateway_url = str(config.url or "").strip().rstrip("/")
+    if gateway_url.startswith("ws://"):
+        gateway_url = "http://" + gateway_url[5:]
+    elif gateway_url.startswith("wss://"):
+        gateway_url = "https://" + gateway_url[6:]
+
+    return StreamingResponse(
+        _proxy_responses_stream(gateway_url, config.token or "", body),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+async def _proxy_responses_stream(
+    gateway_base: str,
+    token: str,
+    body: ChatResponsesRequest,
+) -> AsyncGenerator[bytes, None]:
+    headers: dict[str, str] = {
+        "Content-Type": "application/json",
+        "x-openclaw-agent-id": body.agent_id,
+    }
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+
+    payload = {
+        "model": "openclaw",
+        "stream": True,
+        "input": body.message,
+        "user": body.session_key,
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=120) as client:
+            async with client.stream(
+                "POST",
+                f"{gateway_base}/v1/responses",
+                json=payload,
+                headers=headers,
+            ) as resp:
+                if not resp.is_success:
+                    err_text = await resp.aread()
+                    yield f"data: {json.dumps({'error': f'Gateway {resp.status_code}: {err_text.decode()}'})}\n\n".encode()
+                    return
+                async for chunk in resp.aiter_bytes():
+                    if chunk:
+                        yield chunk
+    except Exception as exc:
+        log.exception("chat_responses_proxy error")
+        yield f"data: {json.dumps({'error': str(exc)})}\n\n".encode()
 
 
 # ---------------------------------------------------------------------------

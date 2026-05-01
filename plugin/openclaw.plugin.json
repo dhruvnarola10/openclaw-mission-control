@@ -1,12 +1,10 @@
 {
   "id": "mission-control-chat",
+  "kind": "channel",
   "activation": {
-    "onStartup": false
+    "onStartup": true
   },
   "channels": ["mission-control"],
-  "channelEnvVars": {
-    "mission-control": ["1d0f29f007d74d058d8479975bb0ad5d9ddb82ae5e4795e9ebf8cd5589e21f49"]
-  },
   "configSchema": {
     "type": "object",
     "additionalProperties": true,

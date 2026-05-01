@@ -1,15 +1,10 @@
 "use client";
 import { useCallback, useRef, useState } from "react";
 
-// ── Gateway coordinates read from public env vars ─────────────────────────────
-// Set in frontend/.env.local:
-//   NEXT_PUBLIC_OPENCLAW_GATEWAY_URL=http://127.0.0.1:18789
-//   NEXT_PUBLIC_OPENCLAW_GATEWAY_TOKEN=<your token>
-const GATEWAY_BASE =
-  (process.env.NEXT_PUBLIC_OPENCLAW_GATEWAY_URL ?? "http://localhost:18789").replace(/\/$/, "");
-const GATEWAY_TOKEN = process.env.NEXT_PUBLIC_OPENCLAW_GATEWAY_TOKEN ?? "";
-
-// ── Types ─────────────────────────────────────────────────────────────────────
+const API_BASE =
+  typeof window !== "undefined"
+    ? ""
+    : (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000");
 
 export type ChatMessage = {
   id: string;
@@ -19,33 +14,39 @@ export type ChatMessage = {
 
 export type StreamStatus = "idle" | "streaming" | "done" | "error";
 
-// ── Hook ──────────────────────────────────────────────────────────────────────
-
 /**
- * Calls the OpenClaw gateway /v1/responses SSE endpoint directly from the
- * browser, exactly like:
+ * Calls POST /api/v1/gateways/chat/responses on the MC backend, which proxies
+ * to the OpenClaw gateway /v1/responses SSE endpoint server-side.
  *
- *   curl -N http://127.0.0.1:18789/v1/responses
- *     -H 'Authorization: Bearer <NEXT_PUBLIC_OPENCLAW_GATEWAY_TOKEN>'
- *     -H 'Content-Type: application/json'
- *     -H 'x-openclaw-agent-id: main'
- *     -d '{ "model": "openclaw", "stream": true, "input": "hi" }'
+ * This avoids CORS issues and keeps the gateway token off the browser.
  */
-export function useGatewaySSEChat(sessionKey: string) {
-  const [messages, setMessages]     = useState<ChatMessage[]>([]);
-  const [streamStatus, setStatus]   = useState<StreamStatus>("idle");
-  const [error, setError]           = useState<string | null>(null);
-  const abortRef                    = useRef<AbortController | null>(null);
+export function useGatewaySSEChat(params: {
+  boardId: string;
+  sessionKey: string;
+  agentId?: string;
+  authToken?: string;
+}) {
+  const { boardId, sessionKey, agentId, authToken } = params;
+
+  const [messages, setMessages]   = useState<ChatMessage[]>([]);
+  const [streamStatus, setStatus] = useState<StreamStatus>("idle");
+  const [error, setError]         = useState<string | null>(null);
+  const abortRef                  = useRef<AbortController | null>(null);
+
+  const buildHeaders = (): Record<string, string> => {
+    const h: Record<string, string> = { "Content-Type": "application/json" };
+    if (authToken) h["Authorization"] = `Bearer ${authToken}`;
+    return h;
+  };
 
   const sendMessage = useCallback(
     async (text: string) => {
-      if (!text.trim()) return;
+      if (!text.trim() || !boardId) return;
       setError(null);
 
       const userId = crypto.randomUUID();
       const asstId = crypto.randomUUID();
 
-      // Optimistic bubbles
       setMessages((prev) => [
         ...prev,
         { id: userId, role: "user",      content: text },
@@ -55,29 +56,24 @@ export function useGatewaySSEChat(sessionKey: string) {
       abortRef.current = new AbortController();
 
       try {
-        const res = await fetch(`${GATEWAY_BASE}/v1/responses`, {
+        const res = await fetch(`${API_BASE}/api/v1/gateways/chat/responses`, {
           method: "POST",
-          headers: {
-            "Content-Type":        "application/json",
-            "Authorization":       `Bearer ${GATEWAY_TOKEN}`,
-            "x-openclaw-agent-id": "main",
-          },
+          headers: buildHeaders(),
           body: JSON.stringify({
-            model:  "openclaw",
-            stream: true,
-            input:  text,
-            user:   sessionKey, // ties this request to the session
+            board_id:    boardId,
+            message:     text,
+            session_key: sessionKey,
+            agent_id:    agentId ?? "main",
           }),
           signal: abortRef.current.signal,
         });
 
         if (!res.ok) {
-          const detail = await res.text();
-          throw new Error(`Gateway ${res.status}: ${detail}`);
+          const detail = await res.json().catch(() => ({ detail: res.statusText }));
+          throw new Error((detail as { detail?: string }).detail ?? `Request failed: ${res.status}`);
         }
-        if (!res.body) throw new Error("No response body from gateway");
+        if (!res.body) throw new Error("No response body");
 
-        // ── SSE streaming ────────────────────────────────────────────────────
         const reader  = res.body.getReader();
         const decoder = new TextDecoder();
         let buf          = "";
@@ -92,28 +88,20 @@ export function useGatewaySSEChat(sessionKey: string) {
           buf = lines.pop() ?? "";
 
           for (const line of lines) {
-            // Track event type line (OpenAI Responses API)
             if (line.startsWith("event: ")) {
               currentEvent = line.slice(7).trim();
               continue;
             }
-
             if (!line.startsWith("data: ")) continue;
 
             const raw = line.slice(6).trim();
-
-            // Legacy chat-completions [DONE] sentinel
-            if (raw === "[DONE]") {
-              setStatus("done");
-              return;
-            }
+            if (raw === "[DONE]") { setStatus("done"); return; }
 
             try {
               const p = JSON.parse(raw) as Record<string, unknown>;
 
               if (p.error) throw new Error(String(p.error));
 
-              // OpenAI Responses API completion events
               if (
                 p.type === "response.completed" ||
                 p.type === "response.done"       ||
@@ -123,10 +111,6 @@ export function useGatewaySSEChat(sessionKey: string) {
                 return;
               }
 
-              // Extract delta text — handles all three SSE formats:
-              //   OpenAI Responses API : { type:"response.output_text.delta", delta:"…" }
-              //   OpenAI Chat Compl.   : { choices:[{ delta:{ content:"…" } }] }
-              //   Normalized           : { delta:"…" }
               const delta =
                 (p.type === "response.output_text.delta" ? (p.delta as string) : undefined) ??
                 (p.delta as string | undefined)                                               ??
@@ -141,28 +125,24 @@ export function useGatewaySSEChat(sessionKey: string) {
                 );
               }
             } catch (e) {
-              // Re-throw real errors; swallow JSON parse noise
               if (e instanceof Error && e.name !== "SyntaxError") throw e;
             }
 
-            currentEvent = ""; // reset after consuming its data line
+            currentEvent = "";
           }
         }
 
         setStatus("done");
       } catch (err: unknown) {
-        if ((err as Error).name === "AbortError") {
-          setStatus("idle");
-          return;
-        }
+        if ((err as Error).name === "AbortError") { setStatus("idle"); return; }
         const msg = err instanceof Error ? err.message : String(err);
         setError(msg);
         setStatus("error");
-        // Drop the empty assistant bubble so UI doesn't show a blank bubble
         setMessages((prev) => prev.filter((m) => m.id !== asstId));
       }
     },
-    [sessionKey],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [boardId, sessionKey, agentId, authToken],
   );
 
   const stopStream = useCallback(() => {

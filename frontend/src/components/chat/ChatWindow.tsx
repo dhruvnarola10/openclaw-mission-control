@@ -35,11 +35,11 @@ function CopyButton({ text }: { text: string }) {
     <button
       onClick={copy}
       title="Copy"
-      className="opacity-0 group-hover:opacity-100 transition-opacity ml-auto shrink-0 p-1 rounded hover:bg-white/10"
+      className="opacity-0 group-hover:opacity-100 ml-auto shrink-0 p-1 rounded hover:bg-slate-200 dark:hover:bg-white/10"
     >
       {copied
-        ? <Check className="h-3.5 w-3.5 text-emerald-400" />
-        : <Copy  className="h-3.5 w-3.5 text-slate-400 hover:text-slate-200" />}
+        ? <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+        : <Copy  className="h-3.5 w-3.5 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200" />}
     </button>
   );
 }
@@ -52,13 +52,13 @@ function RenderText({ text }: { text: string }) {
         if (part.startsWith("```") && part.endsWith("```")) {
           const inner = part.slice(3, -3).replace(/^\w+\n/, "");
           return (
-            <pre key={i} className="my-2 rounded-lg bg-black/30 px-3 py-2 text-xs font-mono overflow-x-auto whitespace-pre text-emerald-300">
+            <pre key={i} className="my-2 rounded-lg bg-slate-100 dark:bg-black/30 px-3 py-2 text-xs font-mono overflow-x-auto whitespace-pre text-emerald-700 dark:text-emerald-300">
               {inner}
             </pre>
           );
         }
         if (part.startsWith("`") && part.endsWith("`")) {
-          return <code key={i} className="rounded bg-black/30 px-1 py-0.5 text-xs font-mono text-amber-300">{part.slice(1, -1)}</code>;
+          return <code key={i} className="rounded bg-slate-100 dark:bg-black/30 px-1 py-0.5 text-xs font-mono text-amber-700 dark:text-amber-300">{part.slice(1, -1)}</code>;
         }
         return part.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g).map((seg, j) => {
           if (seg.startsWith("**") && seg.endsWith("**")) return <strong key={`${i}-${j}`}>{seg.slice(2, -2)}</strong>;
@@ -74,23 +74,30 @@ function RenderText({ text }: { text: string }) {
 
 type ChatMode = "direct" | "plugin";
 
-const BOARD_ID = process.env.NEXT_PUBLIC_MC_CHAT_BOARD_ID ?? "";
+// Board ID for direct mode (MC backend proxies /v1/responses to the gateway)
+const DIRECT_BOARD_ID = process.env.NEXT_PUBLIC_CHAT_BOARD_ID ?? "";
+// Board ID for plugin mode (openclaw channel plugin)
+const PLUGIN_BOARD_ID = process.env.NEXT_PUBLIC_MC_CHAT_BOARD_ID ?? DIRECT_BOARD_ID;
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function ChatWindow() {
   const [sessionKey, setSessionKey] = useState<string>(newSessionKey);
   const [input, setInput]           = useState<string>("");
-  const [mode, setMode]             = useState<ChatMode>(BOARD_ID ? "plugin" : "direct");
+  const [mode, setMode]             = useState<ChatMode>("direct");
 
-  // ── Direct-gateway mode (original behaviour) ───────────────────────────────
-  const directChat = useGatewaySSEChat(sessionKey);
-
-  // ── Plugin-bridge mode (routes via MC backend + openclaw channel plugin) ───
-  const pluginChat = usePluginChat({
-    boardId: BOARD_ID,
+  // ── Direct mode: MC backend proxies POST /v1/responses to the gateway ──────
+  const directChat = useGatewaySSEChat({
+    boardId:  DIRECT_BOARD_ID,
     sessionKey,
-    agentId: process.env.NEXT_PUBLIC_MC_CHAT_AGENT_ID ?? "main",
+    agentId:  process.env.NEXT_PUBLIC_MC_CHAT_AGENT_ID ?? "main",
+  });
+
+  // ── Plugin mode: routes via MC backend + openclaw channel plugin ────────────
+  const pluginChat = usePluginChat({
+    boardId:  PLUGIN_BOARD_ID,
+    sessionKey,
+    agentId:  process.env.NEXT_PUBLIC_MC_CHAT_AGENT_ID ?? "main",
   });
 
   const chat = mode === "plugin" ? pluginChat : directChat;
@@ -104,7 +111,7 @@ export default function ChatWindow() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    bottomRef.current?.scrollIntoView();
   }, [messages, isStreaming]);
 
   useEffect(() => {
@@ -142,34 +149,30 @@ export default function ChatWindow() {
   };
 
   // ── Labels ─────────────────────────────────────────────────────────────────
-  const gatewayDisplay =
-    (process.env.NEXT_PUBLIC_OPENCLAW_GATEWAY_URL ?? "http://127.0.0.1:18789")
-      .replace(/^https?:\/\//, "");
-
   const modeLabel =
     mode === "plugin"
-      ? `board:${BOARD_ID || "?"} · MC plugin`
-      : `${gatewayDisplay} · /v1/responses`;
+      ? `board:${PLUGIN_BOARD_ID || "?"} · MC plugin`
+      : `board:${DIRECT_BOARD_ID || "?"} · /v1/responses`;
 
   return (
     <div className="flex flex-col h-[calc(100vh-148px)] min-h-[520px] max-w-4xl mx-auto w-full">
 
       {/* ── Header ── */}
-      <div className="shrink-0 rounded-t-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border border-slate-700 px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
+      <div className="shrink-0 rounded-t-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-4 py-3 flex flex-col sm:flex-row sm:items-center gap-3">
 
         {/* Brand + status */}
         <div className="flex items-center gap-3 min-w-0">
-          <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-blue-600/20 border border-blue-500/30 shrink-0">
+          <div className="flex items-center justify-center h-8 w-8 rounded-lg bg-blue-100 border border-blue-200 dark:bg-blue-600/20 dark:border-blue-500/30 shrink-0">
             {mode === "plugin"
-              ? <Plug className="h-4 w-4 text-violet-400" />
-              : <Bot  className="h-4 w-4 text-blue-400" />}
+              ? <Plug className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+              : <Bot  className="h-4 w-4 text-blue-600 dark:text-blue-400" />}
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-slate-100 leading-none">OpenClaw Chat</p>
+            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 leading-none">OpenClaw Chat</p>
             <div className="flex items-center gap-1.5 mt-0.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shrink-0" />
-              <Wifi className="h-3 w-3 text-slate-500" />
-              <span className="text-[11px] text-slate-400 font-mono truncate">{modeLabel}</span>
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 shrink-0" />
+              <Wifi className="h-3 w-3 text-slate-400 dark:text-slate-500" />
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono truncate">{modeLabel}</span>
             </div>
           </div>
         </div>
@@ -178,37 +181,37 @@ export default function ChatWindow() {
         <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
 
           {/* Mode switcher */}
-          <div className="flex rounded-lg border border-slate-700 overflow-hidden text-xs">
+          <div className="flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden text-xs">
             <button
               onClick={() => handleModeSwitch("direct")}
               className={cn(
-                "px-2.5 py-1.5 font-medium transition-colors",
+                "px-2.5 py-1.5 font-medium",
                 mode === "direct"
                   ? "bg-blue-600 text-white"
-                  : "bg-slate-800 text-slate-400 hover:text-slate-200",
+                  : "bg-slate-100 text-slate-600 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-400 dark:hover:text-slate-200",
               )}
             >
               Direct
             </button>
             <button
               onClick={() => handleModeSwitch("plugin")}
-              disabled={!BOARD_ID}
-              title={!BOARD_ID ? "Set NEXT_PUBLIC_MC_CHAT_BOARD_ID to enable" : undefined}
+              disabled={!PLUGIN_BOARD_ID}
+              title={!PLUGIN_BOARD_ID ? "Set NEXT_PUBLIC_MC_CHAT_BOARD_ID to enable" : undefined}
               className={cn(
-                "px-2.5 py-1.5 font-medium transition-colors",
+                "px-2.5 py-1.5 font-medium",
                 mode === "plugin"
                   ? "bg-violet-600 text-white"
-                  : "bg-slate-800 text-slate-400 hover:text-slate-200",
-                !BOARD_ID && "opacity-40 cursor-not-allowed",
+                  : "bg-slate-100 text-slate-600 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-400 dark:hover:text-slate-200",
+                !PLUGIN_BOARD_ID && "opacity-40 cursor-not-allowed",
               )}
             >
               Plugin
             </button>
           </div>
 
-          <div className="flex items-center gap-1.5 bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5">
-            <span className="text-[11px] text-slate-400 font-medium">Session</span>
-            <span className="text-[11px] text-slate-300 font-mono truncate max-w-[110px]">
+          <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5">
+            <span className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">Session</span>
+            <span className="text-[11px] text-slate-700 dark:text-slate-300 font-mono truncate max-w-[110px]">
               {sessionKey}
             </span>
           </div>
@@ -217,7 +220,7 @@ export default function ChatWindow() {
             id="new-chat-btn"
             onClick={handleNewChat}
             title="Start new chat session"
-            className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white text-xs font-medium rounded-lg px-3 py-1.5 transition-colors shadow-sm"
+            className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg px-3 py-1.5 shadow-sm"
           >
             <MessageSquarePlus className="h-3.5 w-3.5" />
             New Chat
@@ -226,18 +229,18 @@ export default function ChatWindow() {
       </div>
 
       {/* ── Chat body ── */}
-      <div className="flex flex-col flex-1 overflow-hidden border-x border-b border-slate-700 rounded-b-2xl bg-slate-950 shadow-xl">
+      <div className="flex flex-col flex-1 overflow-hidden border-x border-b border-slate-200 dark:border-slate-700 rounded-b-2xl bg-white dark:bg-slate-950 shadow-xl">
 
         {/* Error banner */}
         {error && (
-          <div className="shrink-0 mx-4 mt-3 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-2.5 text-sm text-rose-300">
+          <div className="shrink-0 mx-4 mt-3 rounded-xl border border-rose-200 bg-rose-50 dark:border-rose-500/30 dark:bg-rose-500/10 px-4 py-2.5 text-sm text-rose-700 dark:text-rose-300">
             <span className="font-semibold">Error: </span>{error}
           </div>
         )}
 
         {/* Plugin-mode no-board warning */}
-        {mode === "plugin" && !BOARD_ID && (
-          <div className="shrink-0 mx-4 mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-300">
+        {mode === "plugin" && !PLUGIN_BOARD_ID && (
+          <div className="shrink-0 mx-4 mt-3 rounded-xl border border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10 px-4 py-2.5 text-sm text-amber-700 dark:text-amber-300">
             Set <code className="font-mono text-xs">NEXT_PUBLIC_MC_CHAT_BOARD_ID</code> in{" "}
             <code className="font-mono text-xs">frontend/.env</code> to use plugin mode.
           </div>
@@ -248,17 +251,17 @@ export default function ChatWindow() {
 
           {messages.length === 0 && !isStreaming && (
             <div className="flex flex-col items-center justify-center h-full text-center gap-3 py-16">
-              <div className="flex items-center justify-center h-14 w-14 rounded-2xl bg-blue-600/15 border border-blue-500/20">
+              <div className="flex items-center justify-center h-14 w-14 rounded-2xl bg-blue-50 border border-blue-100 dark:bg-blue-600/15 dark:border-blue-500/20">
                 {mode === "plugin"
-                  ? <Plug className="h-6 w-6 text-violet-400" />
-                  : <Bot  className="h-6 w-6 text-blue-400" />}
+                  ? <Plug className="h-6 w-6 text-violet-600 dark:text-violet-400" />
+                  : <Bot  className="h-6 w-6 text-blue-600 dark:text-blue-400" />}
               </div>
               <div>
-                <p className="text-slate-300 font-medium text-sm">Start a conversation</p>
-                <p className="text-slate-500 text-xs mt-1">
+                <p className="text-slate-800 dark:text-slate-300 font-medium text-sm">Start a conversation</p>
+                <p className="text-slate-500 dark:text-slate-500 text-xs mt-1">
                   {mode === "plugin"
-                    ? `Plugin mode · board:${BOARD_ID || "?"} · Enter to send`
-                    : `Direct SSE · ${gatewayDisplay} · Enter to send`}
+                    ? `Plugin mode · board:${PLUGIN_BOARD_ID || "?"} · Enter to send`
+                    : `Direct SSE · board:${DIRECT_BOARD_ID || "?"} · Enter to send`}
                 </p>
               </div>
             </div>
@@ -268,7 +271,7 @@ export default function ChatWindow() {
             <div
               key={msg.id}
               className={cn(
-                "group flex gap-2.5 max-w-[90%] md:max-w-[78%] animate-fade-in",
+                "group flex gap-2.5 max-w-[90%] md:max-w-[78%]",
                 msg.role === "user" ? "ml-auto flex-row-reverse" : "mr-auto",
               )}
             >
@@ -277,27 +280,27 @@ export default function ChatWindow() {
                   <div className={cn(
                     "h-7 w-7 rounded-full border flex items-center justify-center",
                     mode === "plugin"
-                      ? "bg-violet-600/20 border-violet-500/30"
-                      : "bg-blue-600/20 border-blue-500/30",
+                      ? "bg-violet-100 border-violet-200 dark:bg-violet-600/20 dark:border-violet-500/30"
+                      : "bg-blue-100 border-blue-200 dark:bg-blue-600/20 dark:border-blue-500/30",
                   )}>
                     {mode === "plugin"
-                      ? <Plug className="h-3.5 w-3.5 text-violet-400" />
-                      : <Bot  className="h-3.5 w-3.5 text-blue-400" />}
+                      ? <Plug className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
+                      : <Bot  className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />}
                   </div>
                 </div>
               )}
 
               <div className={cn(
-                "relative flex flex-col rounded-2xl px-4 py-3 text-sm shadow-md",
+                "relative flex flex-col rounded-2xl px-4 py-3 text-sm shadow-sm",
                 msg.role === "user"
                   ? "bg-blue-600 text-white rounded-tr-none"
-                  : "bg-slate-800 border border-slate-700 text-slate-100 rounded-tl-none",
+                  : "bg-slate-50 border border-slate-200 text-slate-800 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100 rounded-tl-none",
               )}>
                 <div className="flex items-start gap-2">
                   <div className="leading-relaxed whitespace-pre-wrap break-words flex-1">
                     {msg.role === "assistant" ? <RenderText text={msg.content} /> : msg.content}
                     {isStreaming && msg.role === "assistant" && msg.id === messages[messages.length - 1]?.id && (
-                      <span className="inline-block w-0.5 h-4 bg-blue-400 ml-0.5 animate-pulse align-middle" />
+                      <span className="inline-block w-0.5 h-4 bg-blue-600 dark:bg-blue-400 ml-0.5 align-middle" />
                     )}
                   </div>
                   <CopyButton text={msg.content} />
@@ -308,21 +311,21 @@ export default function ChatWindow() {
 
           {/* Typing dots */}
           {isStreaming && messages[messages.length - 1]?.role !== "assistant" && (
-            <div className="flex gap-2.5 mr-auto animate-fade-in">
+            <div className="flex gap-2.5 mr-auto">
               <div className={cn(
                 "h-7 w-7 rounded-full border flex items-center justify-center shrink-0",
                 mode === "plugin"
-                  ? "bg-violet-600/20 border-violet-500/30"
-                  : "bg-blue-600/20 border-blue-500/30",
+                  ? "bg-violet-100 border-violet-200 dark:bg-violet-600/20 dark:border-violet-500/30"
+                  : "bg-blue-100 border-blue-200 dark:bg-blue-600/20 dark:border-blue-500/30",
               )}>
                 {mode === "plugin"
-                  ? <Plug className="h-3.5 w-3.5 text-violet-400" />
-                  : <Bot  className="h-3.5 w-3.5 text-blue-400" />}
+                  ? <Plug className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
+                  : <Bot  className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />}
               </div>
-              <div className="flex items-center gap-1.5 bg-slate-800 border border-slate-700 rounded-2xl rounded-tl-none px-4 py-3">
-                <span className="h-2 w-2 rounded-full bg-slate-400 animate-bounce [animation-delay:-0.3s]" />
-                <span className="h-2 w-2 rounded-full bg-slate-400 animate-bounce [animation-delay:-0.15s]" />
-                <span className="h-2 w-2 rounded-full bg-slate-400 animate-bounce" />
+              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 dark:bg-slate-800 dark:border-slate-700 rounded-2xl rounded-tl-none px-4 py-3">
+                <span className="h-2 w-2 rounded-full bg-slate-400 dark:bg-slate-500" />
+                <span className="h-2 w-2 rounded-full bg-slate-400 dark:bg-slate-500" />
+                <span className="h-2 w-2 rounded-full bg-slate-400 dark:bg-slate-500" />
               </div>
             </div>
           )}
@@ -331,7 +334,7 @@ export default function ChatWindow() {
         </div>
 
         {/* ── Input bar ── */}
-        <div className="shrink-0 border-t border-slate-800 bg-slate-900/80 backdrop-blur px-4 py-3">
+        <div className="shrink-0 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3">
           <div className="flex gap-2 items-end">
             <div className="relative flex-1">
               <textarea
@@ -347,10 +350,10 @@ export default function ChatWindow() {
                     : "Message OpenClaw… (Enter ↵ to send, Shift+Enter for newline)"
                 }
                 rows={1}
-                className="w-full resize-none overflow-hidden rounded-xl border border-slate-700 bg-slate-800/60 text-slate-100 placeholder:text-slate-500 px-4 py-2.5 pr-12 text-sm focus:border-blue-500/60 focus:outline-none focus:ring-1 focus:ring-blue-500/30 disabled:opacity-40 transition-all"
+                className="w-full resize-none overflow-hidden rounded-xl border border-slate-300 bg-slate-50 text-slate-900 placeholder:text-slate-500 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-100 dark:placeholder:text-slate-500 px-4 py-2.5 pr-12 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-40"
               />
               {input.length > 0 && (
-                <span className="absolute bottom-2 right-3 text-[10px] text-slate-500">
+                <span className="absolute bottom-2 right-3 text-[10px] text-slate-400 dark:text-slate-500">
                   {input.length}
                 </span>
               )}
@@ -361,23 +364,23 @@ export default function ChatWindow() {
                 id="stop-stream-btn"
                 onClick={stopStream}
                 title="Stop generation"
-                className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-xl bg-rose-600 hover:bg-rose-500 text-white transition-colors shadow-sm"
+                className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-xl bg-rose-600 hover:bg-rose-700 text-white shadow-sm"
               >
                 <Square className="h-4 w-4 fill-current" />
               </button>
             ) : (
-              <button
+               <button
                 id="send-btn"
                 onClick={handleSend}
                 disabled={!canSend}
                 title="Send (Enter)"
                 className={cn(
-                  "flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-xl text-white transition-all shadow-sm",
+                  "flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-xl text-white shadow-sm",
                   canSend
                     ? mode === "plugin"
-                      ? "bg-violet-600 hover:bg-violet-500"
-                      : "bg-blue-600 hover:bg-blue-500 hover:shadow-blue-500/30 hover:shadow-md"
-                    : "bg-slate-700 cursor-not-allowed opacity-50",
+                      ? "bg-violet-600 hover:bg-violet-700"
+                      : "bg-blue-600 hover:bg-blue-700"
+                    : "bg-slate-200 dark:bg-slate-700 cursor-not-allowed opacity-50",
                 )}
               >
                 <Send className="h-4 w-4" />
@@ -385,10 +388,10 @@ export default function ChatWindow() {
             )}
           </div>
 
-          <p className="mt-1.5 text-center text-[10px] text-slate-600">
+          <p className="mt-1.5 text-center text-[10px] text-slate-500 dark:text-slate-600">
             {mode === "plugin"
-              ? `Plugin mode · MC backend → openclaw channel plugin · board:${BOARD_ID || "?"}`
-              : `Direct SSE · ${gatewayDisplay}/v1/responses · Bearer token from env`}
+              ? `Plugin mode · MC backend → openclaw channel plugin · board:${PLUGIN_BOARD_ID || "?"}`
+              : `Direct SSE · MC backend → /v1/responses · board:${DIRECT_BOARD_ID || "?"}`}
           </p>
         </div>
       </div>

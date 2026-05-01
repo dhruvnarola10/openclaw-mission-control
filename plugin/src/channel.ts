@@ -9,8 +9,6 @@ export const INBOUND_PATH = "/plugins/mission-control-chat/inbound";
  * Called from index.ts during plugin registration.
  */
 export function buildMCChannelPlugin() {
-  // All SDK imports are deferred so the plugin can be loaded in
-  // setup-only / cli-metadata modes without pulling in heavy runtime deps.
   return {
     id: CHANNEL_ID,
     meta: {
@@ -41,16 +39,26 @@ export function buildMCChannelPlugin() {
       },
     },
     gateway: {
+      // ChannelGatewayContext shape from SDK:
+      //   ctx.channelRuntime = PluginRuntime.channel surface (for external plugins)
+      //   ctx.runtime        = RuntimeEnv (NOT PluginRuntime)
       startAccount: async (ctx: {
         cfg: Record<string, unknown>;
         accountId: string;
         abortSignal: AbortSignal;
-        runtime: import("openclaw/plugin-sdk/runtime-store").PluginRuntime;
+        // channelRuntime is the PluginRuntime.channel surface injected by the gateway
+        channelRuntime?: Record<string, unknown>;
         setStatus: (snapshot: unknown) => void;
+        log?: { info?: (s: string) => void; error?: (s: string) => void };
       }) => {
         const { registerPluginHttpRoute } = await import("openclaw/plugin-sdk/webhook-targets");
 
-        const handler = createInboundHandler({ cfg: ctx.cfg, runtime: ctx.runtime });
+        // Wrap channelRuntime as { channel: ... } so inbound.ts can call
+        // core.channel.routing / core.channel.session / core.channel.reply
+        const handler = createInboundHandler({
+          cfg: ctx.cfg,
+          runtime: { channel: ctx.channelRuntime ?? {} } as Parameters<typeof createInboundHandler>[0]["runtime"],
+        });
 
         registerPluginHttpRoute({
           path: INBOUND_PATH,
@@ -58,13 +66,10 @@ export function buildMCChannelPlugin() {
           handler,
         });
 
-        ctx.runtime.logging
-          .getChildLogger({ channel: CHANNEL_ID })
-          .info?.(`[mc-chat] listening at ${INBOUND_PATH}`);
+        ctx.log?.info?.(`[mc-chat] listening at ${INBOUND_PATH}`);
 
-        // Hold until aborted
         await new Promise<void>((resolve) => {
-          ctx.abortSignal.addEventListener("abort", resolve, { once: true });
+          ctx.abortSignal.addEventListener("abort", () => resolve(), { once: true });
         });
       },
     },
