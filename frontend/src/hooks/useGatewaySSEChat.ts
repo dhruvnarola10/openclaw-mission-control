@@ -1,6 +1,10 @@
 "use client";
 import { useCallback, useRef, useState } from "react";
 
+// Gateway credentials from env vars — baked at build time by Next.js.
+const GATEWAY_URL   = process.env.NEXT_PUBLIC_OPENCLAW_GATEWAY_URL   ?? "";
+const GATEWAY_TOKEN = process.env.NEXT_PUBLIC_OPENCLAW_GATEWAY_TOKEN ?? "";
+
 const API_BASE =
   typeof window !== "undefined"
     ? ""
@@ -15,33 +19,24 @@ export type ChatMessage = {
 export type StreamStatus = "idle" | "streaming" | "done" | "error";
 
 /**
- * Calls POST /api/v1/gateways/chat/responses on the MC backend, which proxies
- * to the OpenClaw gateway /v1/responses SSE endpoint server-side.
- *
- * This avoids CORS issues and keeps the gateway token off the browser.
+ * Calls POST /api/v1/gateways/chat/responses on the MC backend.
+ * The backend proxies to the OpenClaw gateway /v1/responses and streams
+ * SSE back — no CORS issues, gateway token stays server-side.
  */
 export function useGatewaySSEChat(params: {
-  boardId: string;
   sessionKey: string;
   agentId?: string;
-  authToken?: string;
 }) {
-  const { boardId, sessionKey, agentId, authToken } = params;
+  const { sessionKey, agentId } = params;
 
   const [messages, setMessages]   = useState<ChatMessage[]>([]);
   const [streamStatus, setStatus] = useState<StreamStatus>("idle");
   const [error, setError]         = useState<string | null>(null);
   const abortRef                  = useRef<AbortController | null>(null);
 
-  const buildHeaders = (): Record<string, string> => {
-    const h: Record<string, string> = { "Content-Type": "application/json" };
-    if (authToken) h["Authorization"] = `Bearer ${authToken}`;
-    return h;
-  };
-
   const sendMessage = useCallback(
     async (text: string) => {
-      if (!text.trim() || !boardId) return;
+      if (!text.trim()) return;
       setError(null);
 
       const userId = crypto.randomUUID();
@@ -58,12 +53,13 @@ export function useGatewaySSEChat(params: {
       try {
         const res = await fetch(`${API_BASE}/api/v1/gateways/chat/responses`, {
           method: "POST",
-          headers: buildHeaders(),
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            board_id:    boardId,
-            message:     text,
-            session_key: sessionKey,
-            agent_id:    agentId ?? "main",
+            message:       text,
+            session_key:   sessionKey,
+            agent_id:      agentId ?? "main",
+            gateway_url:   GATEWAY_URL,
+            gateway_token: GATEWAY_TOKEN,
           }),
           signal: abortRef.current.signal,
         });
@@ -141,8 +137,7 @@ export function useGatewaySSEChat(params: {
         setMessages((prev) => prev.filter((m) => m.id !== asstId));
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [boardId, sessionKey, agentId, authToken],
+    [sessionKey, agentId],
   );
 
   const stopStream = useCallback(() => {

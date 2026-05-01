@@ -88,9 +88,8 @@ export default function ChatWindow() {
 
   // ── Direct mode: MC backend proxies POST /v1/responses to the gateway ──────
   const directChat = useGatewaySSEChat({
-    boardId:  DIRECT_BOARD_ID,
     sessionKey,
-    agentId:  process.env.NEXT_PUBLIC_MC_CHAT_AGENT_ID ?? "main",
+    agentId: process.env.NEXT_PUBLIC_MC_CHAT_AGENT_ID ?? "main",
   });
 
   // ── Plugin mode: routes via MC backend + openclaw channel plugin ────────────
@@ -152,7 +151,7 @@ export default function ChatWindow() {
   const modeLabel =
     mode === "plugin"
       ? `board:${PLUGIN_BOARD_ID || "?"} · MC plugin`
-      : `board:${DIRECT_BOARD_ID || "?"} · /v1/responses`;
+      : `/v1/responses`;
 
   return (
     <div className="flex flex-col h-[calc(100vh-148px)] min-h-[520px] max-w-4xl mx-auto w-full">
@@ -261,7 +260,7 @@ export default function ChatWindow() {
                 <p className="text-slate-500 dark:text-slate-500 text-xs mt-1">
                   {mode === "plugin"
                     ? `Plugin mode · board:${PLUGIN_BOARD_ID || "?"} · Enter to send`
-                    : `Direct SSE · board:${DIRECT_BOARD_ID || "?"} · Enter to send`}
+                    : `Direct SSE · /v1/responses · Enter to send`}
                 </p>
               </div>
             </div>
@@ -391,7 +390,7 @@ export default function ChatWindow() {
           <p className="mt-1.5 text-center text-[10px] text-slate-500 dark:text-slate-600">
             {mode === "plugin"
               ? `Plugin mode · MC backend → openclaw channel plugin · board:${PLUGIN_BOARD_ID || "?"}`
-              : `Direct SSE · MC backend → /v1/responses · board:${DIRECT_BOARD_ID || "?"}`}
+              : `Direct SSE · MC backend → /v1/responses`}
           </p>
         </div>
       </div>

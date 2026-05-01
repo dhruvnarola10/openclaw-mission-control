@@ -77,10 +77,13 @@ class ChatStreamRequest(BaseModel):
 
 
 class ChatResponsesRequest(BaseModel):
-    board_id: str
     message: str
     session_key: str = "main"
     agent_id: str = "main"
+    # Gateway credentials passed directly from the frontend env vars.
+    # The gateway token acts as the auth — the gateway rejects invalid tokens.
+    gateway_url: str
+    gateway_token: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -90,33 +93,24 @@ class ChatResponsesRequest(BaseModel):
 @router.post("/responses")
 async def chat_responses_proxy(
     body: ChatResponsesRequest,
-    session: AsyncSession = Depends(get_session),
-    auth: AuthContext = Depends(get_auth_context),
-    ctx: OrganizationContext = Depends(require_org_admin),
-):
-    """Proxy POST /v1/responses to the OpenClaw gateway, streaming SSE back to the browser."""
-    if auth.user is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED)
+) -> StreamingResponse:
+    """Proxy POST /v1/responses to the OpenClaw gateway, streaming SSE back to the browser.
 
-    service = GatewaySessionService(session)
-    params = GatewayResolveQuery(board_id=body.board_id)
-    board, config, _main_session = await service.resolve_gateway(
-        params, user=auth.user, organization_id=ctx.organization.id
-    )
-    if not board:
-        raise HTTPException(404, "Board not found")
-    if not config:
-        raise HTTPException(404, "Gateway not found")
-
+    No MC-level auth required — the gateway bearer token in the request body
+    authenticates directly with the OpenClaw gateway.
+    """
     # Normalise to http(s) base URL
-    gateway_url = str(config.url or "").strip().rstrip("/")
+    gateway_url = body.gateway_url.strip().rstrip("/")
     if gateway_url.startswith("ws://"):
         gateway_url = "http://" + gateway_url[5:]
     elif gateway_url.startswith("wss://"):
         gateway_url = "https://" + gateway_url[6:]
 
+    if not gateway_url:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="gateway_url is required")
+
     return StreamingResponse(
-        _proxy_responses_stream(gateway_url, config.token or "", body),
+        _proxy_responses_stream(gateway_url, body.gateway_token, body),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
