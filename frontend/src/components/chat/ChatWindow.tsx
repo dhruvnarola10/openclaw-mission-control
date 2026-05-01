@@ -389,9 +389,15 @@ export default function ChatWindow() {
               )}>
                 <div className="flex items-start gap-2">
                   <div className="leading-relaxed whitespace-pre-wrap break-words flex-1">
-                    {msg.role === "assistant" ? <RenderText text={msg.content} /> : msg.content}
-                    {isStreaming && msg.role === "assistant" && msg.id === messages[messages.length - 1]?.id && (
-                      <span className="inline-block w-0.5 h-4 bg-blue-600 dark:bg-blue-400 ml-0.5 align-middle" />
+                    {msg.role === "assistant" && msg.content === "" && isStreaming && msg.id === messages[messages.length - 1]?.id ? (
+                      <span className="text-slate-400 dark:text-slate-500 italic text-xs animate-pulse">Thinking…</span>
+                    ) : msg.role === "assistant" ? (
+                      <RenderText text={msg.content} />
+                    ) : (
+                      msg.content
+                    )}
+                    {isStreaming && msg.role === "assistant" && msg.content !== "" && msg.id === messages[messages.length - 1]?.id && (
+                      <span className="inline-block w-0.5 h-4 bg-blue-600 dark:bg-blue-400 ml-0.5 align-middle animate-pulse" />
                     )}
                   </div>
                   <CopyButton text={msg.content} />
