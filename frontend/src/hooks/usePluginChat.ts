@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
+import { getApiBaseUrl } from "@/lib/api-base";
 
 export type ChatMessage = {
   id: string;
@@ -9,11 +10,6 @@ export type ChatMessage = {
 };
 
 export type StreamStatus = "idle" | "streaming" | "done" | "error";
-
-const API_BASE =
-  typeof window !== "undefined"
-    ? ""
-    : (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000");
 
 /**
  * Chat hook that routes messages through the MC backend plugin-chat bridge
@@ -61,7 +57,7 @@ export function usePluginChat(params: {
 
       try {
         // 1. Forward message to OpenClaw via plugin bridge
-        const sendResp = await fetch(`${API_BASE}/api/v1/plugin-chat/send`, {
+        const sendResp = await fetch(`${getApiBaseUrl()}/api/v1/plugin-chat/send`, {
           method: "POST",
           headers: buildHeaders(),
           body: JSON.stringify({
@@ -81,7 +77,7 @@ export function usePluginChat(params: {
         const { requestId } = (await sendResp.json()) as { requestId: string };
 
         // 2. Open SSE stream to receive the reply
-        const streamResp = await fetch(`${API_BASE}/api/v1/plugin-chat/stream/${requestId}`, {
+        const streamResp = await fetch(`${getApiBaseUrl()}/api/v1/plugin-chat/stream/${requestId}`, {
           headers: buildHeaders(),
           signal: abortRef.current.signal,
         });

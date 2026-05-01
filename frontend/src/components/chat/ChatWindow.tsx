@@ -5,6 +5,7 @@ import {
   Bot,
   Check,
   Copy,
+  History,
   MessageSquarePlus,
   Send,
   Square,
@@ -13,7 +14,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
-import { useGatewaySSEChat } from "@/hooks/useGatewaySSEChat";
+import { useGatewaySSEChat, loadSessions, type SessionMeta } from "@/hooks/useGatewaySSEChat";
 import { usePluginChat } from "@/hooks/usePluginChat";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -70,13 +71,21 @@ function RenderText({ text }: { text: string }) {
   );
 }
 
+function formatTime(ts: number) {
+  const d = new Date(ts);
+  const now = new Date();
+  const diff = now.getTime() - ts;
+  if (diff < 60_000) return "just now";
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
+  if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
 // ── Mode toggle ───────────────────────────────────────────────────────────────
 
 type ChatMode = "direct" | "plugin";
 
-// Board ID for direct mode (MC backend proxies /v1/responses to the gateway)
 const DIRECT_BOARD_ID = process.env.NEXT_PUBLIC_CHAT_BOARD_ID ?? "";
-// Board ID for plugin mode (openclaw channel plugin)
 const PLUGIN_BOARD_ID = process.env.NEXT_PUBLIC_MC_CHAT_BOARD_ID ?? DIRECT_BOARD_ID;
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -85,6 +94,11 @@ export default function ChatWindow() {
   const [sessionKey, setSessionKey] = useState<string>(newSessionKey);
   const [input, setInput]           = useState<string>("");
   const [mode, setMode]             = useState<ChatMode>("direct");
+
+  // History dropdown
+  const [showHistory, setShowHistory]   = useState(false);
+  const [pastSessions, setPastSessions] = useState<SessionMeta[]>([]);
+  const historyRef = useRef<HTMLDivElement>(null);
 
   // ── Direct mode: MC backend proxies POST /v1/responses to the gateway ──────
   const directChat = useGatewaySSEChat({
@@ -120,6 +134,18 @@ export default function ChatWindow() {
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
   }, [input]);
 
+  // Close history dropdown on outside click
+  useEffect(() => {
+    if (!showHistory) return;
+    const handler = (e: MouseEvent) => {
+      if (historyRef.current && !historyRef.current.contains(e.target as Node)) {
+        setShowHistory(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showHistory]);
+
   // ── Handlers ──────────────────────────────────────────────────────────────
   const handleSend = useCallback(() => {
     if (!canSend) return;
@@ -138,6 +164,7 @@ export default function ChatWindow() {
     clearMessages();
     setSessionKey(newSessionKey());
     setInput("");
+    setShowHistory(false);
   };
 
   const handleModeSwitch = (next: ChatMode) => {
@@ -145,6 +172,19 @@ export default function ChatWindow() {
     setMode(next);
     setSessionKey(newSessionKey());
     setInput("");
+  };
+
+  const openHistory = () => {
+    setPastSessions(loadSessions());
+    setShowHistory((v) => !v);
+  };
+
+  const restoreSession = (key: string) => {
+    if (isStreaming) stopStream();
+    setMode("direct");
+    setSessionKey(key);
+    setInput("");
+    setShowHistory(false);
   };
 
   // ── Labels ─────────────────────────────────────────────────────────────────
@@ -176,7 +216,7 @@ export default function ChatWindow() {
           </div>
         </div>
 
-        {/* Mode toggle + Session + New Chat */}
+        {/* Mode toggle + Session + History + New Chat */}
         <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
 
           {/* Mode switcher */}
@@ -213,6 +253,58 @@ export default function ChatWindow() {
             <span className="text-[11px] text-slate-700 dark:text-slate-300 font-mono truncate max-w-[110px]">
               {sessionKey}
             </span>
+          </div>
+
+          {/* History dropdown */}
+          <div className="relative" ref={historyRef}>
+            <button
+              onClick={openHistory}
+              title="Chat history"
+              className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 text-xs font-medium rounded-lg px-2.5 py-1.5"
+            >
+              <History className="h-3.5 w-3.5" />
+              History
+            </button>
+
+            {showHistory && (
+              <div className="absolute right-0 top-full mt-1 w-72 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden">
+                <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800">
+                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">Recent chats</p>
+                </div>
+                {pastSessions.length === 0 ? (
+                  <div className="px-3 py-4 text-center text-xs text-slate-500 dark:text-slate-500">
+                    No saved chats yet
+                  </div>
+                ) : (
+                  <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+                    {pastSessions.map((s) => (
+                      <button
+                        key={s.key}
+                        onClick={() => restoreSession(s.key)}
+                        className={cn(
+                          "w-full text-left px-3 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors",
+                          s.key === sessionKey && "bg-blue-50 dark:bg-blue-900/20",
+                        )}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[11px] font-mono text-slate-500 dark:text-slate-500 truncate">
+                            {s.key}
+                          </span>
+                          <span className="text-[10px] text-slate-400 dark:text-slate-600 shrink-0">
+                            {formatTime(s.updatedAt)}
+                          </span>
+                        </div>
+                        {s.preview && (
+                          <p className="text-xs text-slate-700 dark:text-slate-300 mt-0.5 truncate">
+                            {s.preview}
+                          </p>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <button

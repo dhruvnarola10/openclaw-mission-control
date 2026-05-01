@@ -87,8 +87,11 @@ class Settings(BaseSettings):
     # Mission Control plugin-chat bridge
     # Shared secret that the openclaw channel plugin uses to authenticate callbacks.
     mc_plugin_shared_secret: str = ""
-    # URL of the running OpenClaw gateway (used to forward inbound messages to the plugin).
-    mc_plugin_openclaw_gateway_url: str = "http://localhost:18789"
+    # URL of the running OpenClaw gateway reachable from this container.
+    # Use http://172.17.0.1:18789 when openclaw runs on the Docker host.
+    mc_plugin_openclaw_gateway_url: str = "http://172.17.0.1:18789"
+    # Bearer token for the OpenClaw gateway /v1/responses API.
+    mc_plugin_openclaw_gateway_token: str = ""
 
     # Logging
     log_level: str = "INFO"

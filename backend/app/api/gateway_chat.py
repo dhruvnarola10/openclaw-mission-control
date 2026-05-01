@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_org_admin
 from app.core.auth import AuthContext, get_auth_context
+from app.core.config import settings
 from app.db.session import get_session
 from app.schemas.gateway_api import GatewayResolveQuery
 from app.services.openclaw.gateway_rpc import (
@@ -80,10 +81,6 @@ class ChatResponsesRequest(BaseModel):
     message: str
     session_key: str = "main"
     agent_id: str = "main"
-    # Gateway credentials passed directly from the frontend env vars.
-    # The gateway token acts as the auth — the gateway rejects invalid tokens.
-    gateway_url: str
-    gateway_token: str = ""
 
 
 # ---------------------------------------------------------------------------
@@ -96,21 +93,16 @@ async def chat_responses_proxy(
 ) -> StreamingResponse:
     """Proxy POST /v1/responses to the OpenClaw gateway, streaming SSE back to the browser.
 
-    No MC-level auth required — the gateway bearer token in the request body
-    authenticates directly with the OpenClaw gateway.
+    Gateway URL and token come from server config (MC_PLUGIN_OPENCLAW_GATEWAY_URL /
+    MC_PLUGIN_OPENCLAW_GATEWAY_TOKEN) — not from the client request.
     """
-    # Normalise to http(s) base URL
-    gateway_url = body.gateway_url.strip().rstrip("/")
-    if gateway_url.startswith("ws://"):
-        gateway_url = "http://" + gateway_url[5:]
-    elif gateway_url.startswith("wss://"):
-        gateway_url = "https://" + gateway_url[6:]
-
+    gateway_url = settings.mc_plugin_openclaw_gateway_url.strip().rstrip("/")
     if not gateway_url:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="gateway_url is required")
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                            detail="MC_PLUGIN_OPENCLAW_GATEWAY_URL not configured")
 
     return StreamingResponse(
-        _proxy_responses_stream(gateway_url, body.gateway_token, body),
+        _proxy_responses_stream(gateway_url, settings.mc_plugin_openclaw_gateway_token, body),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
