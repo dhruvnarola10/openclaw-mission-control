@@ -1,16 +1,16 @@
 import { DashboardPageLayout } from "@/components/templates/DashboardPageLayout";
-import ChatWindow from "@/components/chat/ChatWindow";
+import { GatewayDirectChat } from "@/components/chat/GatewayDirectChat";
 
 export default function ChatPage() {
   return (
-    <DashboardPageLayout 
+    <DashboardPageLayout
       title="Chat"
       signedOut={{
         message: "Sign in to view chat.",
         forceRedirectUrl: "/chat",
       }}
     >
-      <ChatWindow />
+      <GatewayDirectChat />
     </DashboardPageLayout>
   );
 }

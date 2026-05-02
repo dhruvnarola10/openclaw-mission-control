@@ -17,23 +17,17 @@ import { cn } from "@/lib/utils";
 import { useGatewayWS } from "@/hooks/useGatewayWS";
 import type { GatewayConfig } from "@/hooks/useGatewayConfig";
 
-// ── Gateway config from env vars (no backend roundtrip needed) ────────────────
-
 const GATEWAY_CONFIG: GatewayConfig = {
   url:   process.env.NEXT_PUBLIC_OPENCLAW_GATEWAY_WS_URL ?? "ws://localhost:18789",
   token: process.env.NEXT_PUBLIC_OPENCLAW_GATEWAY_TOKEN  ?? "",
 };
 
-// ── Known sessions ────────────────────────────────────────────────────────────
-
 const SESSIONS = [
-  { key: "agent:main:openresponses-user:mc-test",        label: "MC Test" },
-  { key: "agent:main:openresponses-user:debug-direct-ui",label: "Debug UI" },
-  { key: "agent:main:main",                              label: "Main" },
+  { key: "agent:main:openresponses-user:mc-test",         label: "MC Test" },
+  { key: "agent:main:openresponses-user:debug-direct-ui", label: "Debug UI" },
+  { key: "agent:main:main",                               label: "Main" },
   { key: "agent:main:openresponses-user:my-chatapp-user-123", label: "ChatApp" },
 ];
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -80,14 +74,12 @@ function RenderText({ text }: { text: string }) {
   );
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────────
-
-export default function ChatPage() {
-  const [sessionIdx,   setSessionIdx]   = useState(0);
-  const [showPicker,   setShowPicker]   = useState(false);
-  const [input,        setInput]        = useState("");
-  const pickerRef  = useRef<HTMLDivElement>(null);
-  const bottomRef  = useRef<HTMLDivElement>(null);
+export function GatewayDirectChat() {
+  const [sessionIdx,  setSessionIdx]  = useState(0);
+  const [showPicker,  setShowPicker]  = useState(false);
+  const [input,       setInput]       = useState("");
+  const pickerRef   = useRef<HTMLDivElement>(null);
+  const bottomRef   = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const sessionKey = SESSIONS[sessionIdx].key;
@@ -98,12 +90,10 @@ export default function ChatPage() {
   const isConnected = wsStatus === "connected";
   const canSend     = isConnected && !!input.trim() && !isTyping;
 
-  // Auto-scroll
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
-  // Auto-resize textarea
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
@@ -111,7 +101,6 @@ export default function ChatPage() {
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
   }, [input]);
 
-  // Close session picker on outside click
   useEffect(() => {
     if (!showPicker) return;
     const h = (e: MouseEvent) => {
@@ -132,25 +121,23 @@ export default function ChatPage() {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
 
-  // Status dot + label
   const statusColor =
-    wsStatus === "connected"   ? "bg-emerald-500" :
-    wsStatus === "connecting"  ? "bg-yellow-400 animate-pulse" :
-    wsStatus === "error"       ? "bg-rose-500" :
-                                 "bg-slate-400";
+    wsStatus === "connected"  ? "bg-emerald-500" :
+    wsStatus === "connecting" ? "bg-yellow-400 animate-pulse" :
+    wsStatus === "error"      ? "bg-rose-500" :
+                                "bg-slate-400";
+
   const statusLabel =
-    wsStatus === "connected"   ? "Connected" :
-    wsStatus === "connecting"  ? "Connecting…" :
-    wsStatus === "error"       ? "Error" :
-                                 "Disconnected";
+    wsStatus === "connected"  ? "Connected" :
+    wsStatus === "connecting" ? "Connecting…" :
+    wsStatus === "error"      ? "Connection error" :
+                                "Disconnected";
 
   return (
-    <div className="flex flex-col h-[calc(100vh-64px)] max-w-4xl mx-auto w-full">
+    <div className="flex flex-col h-[calc(100vh-148px)] min-h-[520px] max-w-4xl mx-auto w-full">
 
-      {/* ── Header ── */}
+      {/* Header */}
       <div className="shrink-0 rounded-t-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-4 py-3 flex items-center gap-3 flex-wrap">
-
-        {/* Icon + title */}
         <div className="flex items-center gap-2.5 min-w-0">
           <div className="h-8 w-8 rounded-lg bg-blue-100 border border-blue-200 dark:bg-blue-600/20 dark:border-blue-500/30 flex items-center justify-center shrink-0">
             <Bot className="h-4 w-4 text-blue-600 dark:text-blue-400" />
@@ -159,9 +146,15 @@ export default function ChatPage() {
             <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 leading-none">OpenClaw Chat</p>
             <div className="flex items-center gap-1.5 mt-0.5">
               <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", statusColor)} />
-              {isTyping
-                ? <><Wifi className="h-3 w-3 text-blue-400 animate-pulse" /><span className="text-[11px] text-blue-500 dark:text-blue-400">Agent is thinking…</span></>
-                : <><Wifi className="h-3 w-3 text-slate-400" /><span className="text-[11px] text-slate-500 dark:text-slate-400">{statusLabel}</span></>}
+              <Wifi className="h-3 w-3 text-slate-400 dark:text-slate-500" />
+              <span className={cn(
+                "text-[11px] font-mono",
+                isTyping         ? "text-blue-500 dark:text-blue-400" :
+                wsStatus === "error" ? "text-rose-500" :
+                                   "text-slate-500 dark:text-slate-400",
+              )}>
+                {isTyping ? "Agent is thinking…" : statusLabel}
+              </span>
             </div>
           </div>
         </div>
@@ -172,15 +165,12 @@ export default function ChatPage() {
             onClick={() => setShowPicker(v => !v)}
             className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-300"
           >
-            <span className="max-w-[160px] truncate font-mono">{SESSIONS[sessionIdx].label}</span>
+            <span className="max-w-[140px] truncate">{SESSIONS[sessionIdx].label}</span>
             <ChevronDown className="h-3.5 w-3.5 text-slate-400 shrink-0" />
           </button>
-
           {showPicker && (
             <div className="absolute right-0 top-full mt-1 w-72 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden">
-              <p className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-100 dark:border-slate-800">
-                Sessions
-              </p>
+              <p className="px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-100 dark:border-slate-800">Sessions</p>
               {SESSIONS.map((s, i) => (
                 <button
                   key={s.key}
@@ -201,31 +191,29 @@ export default function ChatPage() {
         {/* Reload history */}
         <button
           onClick={() => loadHistory()}
-          title="Reload history"
           disabled={!isConnected}
+          title="Reload history"
           className="h-[30px] w-[30px] flex items-center justify-center rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 disabled:opacity-40"
         >
           <RefreshCw className="h-3.5 w-3.5 text-slate-500" />
         </button>
       </div>
 
-      {/* ── Body ── */}
+      {/* Body */}
       <div className="flex flex-col flex-1 overflow-hidden border-x border-b border-slate-200 dark:border-slate-700 rounded-b-2xl bg-white dark:bg-slate-950 shadow-xl">
 
-        {/* Error banner */}
         {error && (
           <div className="shrink-0 mx-4 mt-3 rounded-xl border border-rose-200 bg-rose-50 dark:border-rose-500/30 dark:bg-rose-500/10 px-4 py-2.5 text-sm text-rose-700 dark:text-rose-300">
             <span className="font-semibold">Error: </span>{error}
           </div>
         )}
 
-        {/* Disconnected banner */}
-        {wsStatus === "error" || wsStatus === "disconnected" ? (
+        {(wsStatus === "error" || wsStatus === "disconnected") && (
           <div className="shrink-0 mx-4 mt-3 rounded-xl border border-amber-200 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10 px-4 py-2.5 text-sm text-amber-700 dark:text-amber-300 flex items-center gap-2">
             <WifiOff className="h-4 w-4 shrink-0" />
-            <span>Not connected to gateway — check <code className="text-xs font-mono">NEXT_PUBLIC_OPENCLAW_GATEWAY_WS_URL</code> and rebuild.</span>
+            <span>Not connected — check <code className="text-xs font-mono">NEXT_PUBLIC_OPENCLAW_GATEWAY_WS_URL</code></span>
           </div>
-        ) : null}
+        )}
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
@@ -236,9 +224,9 @@ export default function ChatPage() {
               </div>
               <div>
                 <p className="text-slate-800 dark:text-slate-300 font-medium text-sm">
-                  {isConnected ? "No messages yet" : "Connecting to gateway…"}
+                  {isConnected ? "Start a conversation" : "Connecting to gateway…"}
                 </p>
-                <p className="text-slate-500 text-xs mt-1 font-mono">{sessionKey}</p>
+                <p className="text-slate-500 dark:text-slate-500 text-xs mt-1 font-mono">{sessionKey}</p>
               </div>
             </div>
           )}
@@ -266,9 +254,7 @@ export default function ChatPage() {
               )}>
                 <div className="flex items-start gap-2">
                   <div className="leading-relaxed whitespace-pre-wrap break-words flex-1">
-                    {msg.role === "assistant"
-                      ? <RenderText text={msg.content} />
-                      : msg.content}
+                    {msg.role === "assistant" ? <RenderText text={msg.content} /> : msg.content}
                   </div>
                   <CopyButton text={msg.content} />
                 </div>
@@ -276,7 +262,7 @@ export default function ChatPage() {
             </div>
           ))}
 
-          {/* Thinking indicator */}
+          {/* Thinking dots */}
           {isTyping && (
             <div className="flex gap-2.5 mr-auto">
               <div className="h-7 w-7 rounded-full bg-blue-100 border border-blue-200 dark:bg-blue-600/20 dark:border-blue-500/30 flex items-center justify-center shrink-0">
@@ -293,7 +279,7 @@ export default function ChatPage() {
           <div ref={bottomRef} />
         </div>
 
-        {/* ── Input bar ── */}
+        {/* Input bar */}
         <div className="shrink-0 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3">
           <div className="flex gap-2 items-end">
             <div className="relative flex-1">
@@ -331,9 +317,7 @@ export default function ChatPage() {
                 title="Send (Enter)"
                 className={cn(
                   "flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-xl text-white shadow-sm",
-                  canSend
-                    ? "bg-blue-600 hover:bg-blue-700"
-                    : "bg-slate-200 dark:bg-slate-700 cursor-not-allowed opacity-50",
+                  canSend ? "bg-blue-600 hover:bg-blue-700" : "bg-slate-200 dark:bg-slate-700 cursor-not-allowed opacity-50",
                 )}
               >
                 <Send className="h-4 w-4" />
@@ -341,7 +325,7 @@ export default function ChatPage() {
             )}
           </div>
           <p className="mt-1.5 text-center text-[10px] text-slate-500 dark:text-slate-600">
-            Direct WebSocket · {GATEWAY_CONFIG.url} · Enter to send · Shift+Enter for newline
+            Direct WebSocket · Enter to send · Shift+Enter for newline
           </p>
         </div>
       </div>
