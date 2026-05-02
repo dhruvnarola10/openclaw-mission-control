@@ -118,7 +118,16 @@ export function useGatewayWS({ config, sessionKey }: UseGatewayWSOptions) {
       // OpenClaw builtin UI connect protocol:
       // minProtocol/maxProtocol=3, client.mode="webchat", auth.token=gateway_token
       const connectId = crypto.randomUUID();
-      pendingRef.current.set(connectId, () => {}); // consume ack
+      pendingRef.current.set(connectId, (frame: unknown) => {
+        const f = frame as Record<string, unknown>;
+        if (f.ok !== false) {
+          setWsStatus("connected");
+          loadHistory();
+        } else {
+          setWsStatus("error");
+          setError("Gateway authentication failed — check your token");
+        }
+      });
       ws.send(JSON.stringify({
         type: "req",
         id: connectId,
@@ -265,6 +274,15 @@ export function useGatewayWS({ config, sessionKey }: UseGatewayWSOptions) {
     setWsStatus("disconnected");
   }, []);
 
+  // ── Abort running agent ───────────────────────────────────────────────────────
+  const abortRun = useCallback(async () => {
+    try {
+      await rpc("chat.abort", { sessionKey: sessionKeyRef.current });
+    } catch (e) {
+      console.warn("[OpenClaw] abort failed:", e);
+    }
+  }, [rpc]);
+
   // ── Send message ─────────────────────────────────────────────────────────────
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim()) return;
@@ -329,6 +347,7 @@ export function useGatewayWS({ config, sessionKey }: UseGatewayWSOptions) {
     isTyping,
     error,
     sendMessage,
+    abortRun,
     loadHistory,
     connect,
     disconnect,
