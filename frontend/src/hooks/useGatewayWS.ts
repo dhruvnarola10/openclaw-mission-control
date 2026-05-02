@@ -158,6 +158,46 @@ export function useGatewayWS({ config, sessionKey }: UseGatewayWSOptions) {
       const ftype = frame.type;
       const fid   = frame.id as string | undefined;
 
+      // ── connect.challenge — gateway requests nonce-based auth ───────────
+      if (ftype === "event" && frame.event === "connect.challenge") {
+        const nonce = (frame.payload as any)?.nonce;
+        const cfg   = configRef.current;
+        if (nonce && cfg?.token) {
+          const challengeId = crypto.randomUUID();
+          pendingRef.current.set(challengeId, (resp: unknown) => {
+            const r = resp as Record<string, unknown>;
+            if (r.ok !== false) {
+              setWsStatus("connected");
+              loadHistory();
+            } else {
+              setWsStatus("error");
+              setError("Gateway challenge auth failed — check your token");
+            }
+          });
+          ws.send(JSON.stringify({
+            type: "req",
+            id: challengeId,
+            method: "connect",
+            params: {
+              minProtocol: 3,
+              maxProtocol: 3,
+              role: "operator",
+              scopes: ["operator.read", "operator.admin", "operator.approvals"],
+              client: {
+                id:       "openclaw-control-ui",
+                version:  "mc-dashboard",
+                platform: "web",
+                mode:     "operator",
+              },
+              auth: { token: cfg.token, nonce },
+              userAgent: navigator.userAgent,
+              locale:    navigator.language,
+            },
+          }));
+        }
+        return;
+      }
+
       // ── RPC response ────────────────────────────────────────────────────
       if (ftype === "res" && fid) {
         const resolve = pendingRef.current.get(fid);
