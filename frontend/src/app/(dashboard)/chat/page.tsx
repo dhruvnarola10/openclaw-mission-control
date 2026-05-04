@@ -1,5 +1,5 @@
 import { DashboardPageLayout } from "@/components/templates/DashboardPageLayout";
-import { GatewayDirectChat } from "@/components/chat/GatewayDirectChat";
+import { OpenClawChat } from "@/components/chat/OpenClawChat";
 
 export default function ChatPage() {
   return (
@@ -9,8 +9,9 @@ export default function ChatPage() {
         message: "Sign in to view chat.",
         forceRedirectUrl: "/chat",
       }}
+      contentClassName="p-0 overflow-hidden"
     >
-      <GatewayDirectChat />
+      <OpenClawChat />
     </DashboardPageLayout>
   );
 }

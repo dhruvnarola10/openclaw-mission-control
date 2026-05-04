@@ -18,7 +18,7 @@ import { useGatewayWS } from "@/hooks/useGatewayWS";
 import type { GatewayConfig } from "@/hooks/useGatewayConfig";
 
 const GATEWAY_CONFIG: GatewayConfig = {
-  url:   process.env.NEXT_PUBLIC_OPENCLAW_GATEWAY_WS_URL ?? "ws://43.205.195.115:18789",
+  url:   process.env.NEXT_PUBLIC_OPENCLAW_GATEWAY_WS_URL || "ws://localhost:18789" || "ws://13.205.13.12:18789",
   token: process.env.NEXT_PUBLIC_OPENCLAW_GATEWAY_TOKEN  ?? "600a404a5a008c9f8c643a5a2f83b4529a6eae0d46ebc131",
 };
 const SESSIONS = [
